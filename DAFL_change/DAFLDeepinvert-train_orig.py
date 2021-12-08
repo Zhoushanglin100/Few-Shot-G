@@ -21,10 +21,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 from torchvision.datasets.mnist import MNIST
-from lenet import LeNet5Half
+from DAFL_change.model.lenet import LeNet5Half
 from torchvision.datasets import CIFAR10
 from torchvision.datasets import CIFAR100
-import resnet
+import DAFL_change.resnet as resnet
 import random
 #import os
 #os.environ['CUDA_VISIBLE_DEVICES']='2'

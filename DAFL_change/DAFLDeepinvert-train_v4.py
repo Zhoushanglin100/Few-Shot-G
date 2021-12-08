@@ -5,8 +5,8 @@
 #This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD 3-Clause License for more details.
 
 import os
-from lenet import LeNet5
-import resnet
+from model.lenet import LeNet5
+import resnet as resnet
 import torch
 from torch.autograd import Variable
 from torchvision.datasets.mnist import MNIST
@@ -93,6 +93,10 @@ class DeepInversionFeatureHook():
 
         mean = input[0].mean([0, 2, 3])
         var = input[0].permute(1, 0, 2, 3).contiguous().view([nch, -1]).var(1, unbiased=False)
+
+        # print("output", mean.shape, var.shape)
+        # print("batch", module.running_mean.data.shape, module.running_var.data.shape)
+        # print("=====")
 
         # forcing mean and variance to match between two distributions
         # other ways might work better, e.g. KL divergence
@@ -292,9 +296,8 @@ def adjust_learning_rate(args, optimizer, epoch):
     else:
         lr = args.lr_S # lr decay
         lr_sq = ((epoch-args.n_epochs_G) // args.decay)+1
-        # lr_sq = ((epoch-args.n_epochs_G) // 2)+1
-
         lr = (0.977 ** lr_sq) * lr
+    
 
     # if epoch < args.n_epochs_G: # only train G
     #     lr = 0
@@ -336,7 +339,8 @@ def adjust_learning_rate_G(args, optimizer, epoch):
 
 ## Create hooks for feature statistics catching
 loss_r_feature_layers = []
-for module in teacher.modules():
+# for module in teacher.modules():
+for name, module in teacher.named_modules():
     if isinstance(module, nn.BatchNorm2d):
         loss_r_feature_layers.append(DeepInversionFeatureHook(module))
 # setting up the range for jitter

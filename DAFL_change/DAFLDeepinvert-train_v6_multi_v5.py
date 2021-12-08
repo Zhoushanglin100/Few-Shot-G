@@ -1,15 +1,11 @@
 import os, random
-import resnet
+import resnet as resnet
 import torch
 from torch.autograd import Variable
-# from torchvision.datasets.mnist import MNIST
-# from torchvision.datasets import CIFAR10
-# from torchvision.datasets import CIFAR100
-# import torchvision.transforms as transforms
-# from torch.utils.data import DataLoader 
 import argparse
 
 from script import *
+import collections
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -41,12 +37,18 @@ parser.add_argument('--train_S', action='store_true', default=False,
                     help='whether to train student')
 
 parser.add_argument('--n_divid', type=int, default=10, help='number of division of dataset')
+parser.add_argument('--num_sample', type=int, default=50, help='number of samples for statistics')
 
 parser.add_argument('--n_epochs_G', type=int, default=50, help='number of epochs of training generator')
 parser.add_argument('--n_epochs', type=int, default=400, help='number of epochs of training total')
 
 parser.add_argument('--fix_G', action='store_true', default=False,
                     help='whether stop train generator after start training student')
+
+parser.add_argument('--hook_type', type=str, default='output', choices=['input', 'output'],
+                    help = "hook statistics from input data or output data")
+parser.add_argument('--stat_type', type=str, default='extract', choices=['running', 'extract'],
+                    help = "statistics from self extracted from a batch or saved stats from teacher")
 
 parser.add_argument('--batch_size', type=int, default=256, help='size of the batches')
 parser.add_argument('--lr_G', type=float, default=0.001, help='learning rate of generator')
@@ -63,18 +65,32 @@ parser.add_argument('--a', type=float, default=0.1, help='activation loss')
 
 args = parser.parse_args()
 
+print("-----------------------------")
+print(args)
+print("-----------------------------")
 
 if has_wandb:
     if args.train_G:
-        id = "trainG-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, args.batch_size, args.fix_G, args.latent_dim,
-                                                                        args.n_epochs, args.n_epochs_G,
-                                                                        args.lr_G, args.lr_S)
+        # id = "trainG-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
+        #                                                            args.batch_size, 
+        #                                                            args.fix_G, 
+        #                                                            args.latent_dim,
+        #                                                            args.n_epochs, args.n_epochs_G,
+        #                                                            args.lr_G, args.lr_S)
+        id = "trainG-{}".format(args.ext)
     if args.train_S:
-        id = "trainS-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, args.batch_size, args.fix_G, args.latent_dim,
-                                                                        args.n_epochs, args.n_epochs_G,
-                                                                        args.lr_G, args.lr_S)
+        # id = "trainS-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
+        #                                                             args.batch_size, 
+        #                                                             args.fix_G, 
+        #                                                             args.latent_dim,
+        #                                                             args.n_epochs, args.n_epochs_G,
+        #                                                             args.lr_G, args.lr_S)
+        id = "trainS-{}".format(args.ext)
+
     wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args, resume="allow", id=id)
     # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)
+    
+    # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args, resume="allow", id='S-1G-Output-R100')
     wandb.config.update(args)
 
 acc = 0
@@ -88,27 +104,58 @@ class DeepInversionFeatureHook():
     Will compute mean and variance, and will use l2 as a loss
     '''
 
-    def __init__(self, module):
+    def __init__(self, args, name, module, mean_dict, var_dict):
         self.hook = module.register_forward_hook(self.hook_fn)
+        self.name = name
+        self.mean_dict = mean_dict
+        self.var_dict = var_dict
+        self.hook_type = args.hook_type
+        self.stat_type = args.stat_type
+        self.mean_layers = []
 
     def hook_fn(self, module, input, output):
+
         # hook co compute deepinversion's feature distribution regularization
-        nch = input[0].shape[1]
+        if self.hook_type == "input":
+            nch = input[0].shape[1]
+            mean = input[0].mean([0, 2, 3])
+            var = input[0].permute(1, 0, 2, 3).contiguous().view([nch, -1]).var(1, unbiased=False)
+        elif self.hook_type == "output":
+            nch = output.shape[1]
+            mean = output.mean([0,2,3])
+            var = output.permute(1, 0, 2, 3).contiguous().view([nch, -1]).var(1, unbiased=False)
 
-        mean = input[0].mean([0, 2, 3])
-        var = input[0].permute(1, 0, 2, 3).contiguous().view([nch, -1]).var(1, unbiased=False)
+            self.mean_layers.append(mean)
 
-        # forcing mean and variance to match between two distributions
-        # other ways might work better, e.g. KL divergence
-        r_feature = torch.norm(module.running_var.data.type(var.type()) - var, 2) + torch.norm(
-            module.running_mean.data.type(mean.type()) - mean, 2)
+        if self.stat_type == "running":
+            # forcing mean and variance to match between two distributions
+            # other ways might work better, e.g. KL divergence
+            r_feature = torch.norm(module.running_var.data.type(var.type()) - var, 2) + torch.norm(
+                module.running_mean.data.type(mean.type()) - mean, 2)
+        elif self.stat_type == "extract":
+            batch_mean = self.mean_dict[self.name].cuda()
+            batch_var = self.var_dict[self.name].cuda()
+            
+            # print("!!!!!!!!!", self.name)
+            # print("output", mean.shape, var.shape)
+            # print("batch", batch_mean.shape, batch_var.shape)
+            # print("=====")
+
+            criterion = nn.CosineEmbeddingLoss()
+            r_feature = criterion(batch_var.view(1,-1),var.view(1,-1),torch.ones(1).cuda())+criterion(batch_mean.view(1,-1),mean.view(1,-1),torch.ones(1).cuda())
+            
+            # r_feature = torch.norm(module.running_var.data.type(var.type()) - var, 2) + torch.norm(
+            #     module.running_mean.data.type(mean.type()) - mean, 2)
+
+            # r_feature = torch.norm(batch_var.type(var.type()) - var, 2) + torch.norm(
+            #         batch_mean.type(mean.type()) - mean, 2)
 
         self.r_feature = r_feature
         # must have no output
 
     def close(self):
         self.hook.remove()
-### end deepinversion
+
 
 # ------------------------------------------------
 ### add gen
@@ -174,6 +221,8 @@ def adjust_learning_rate(args, optimizer, epoch):
         lr_sq = ((epoch-args.n_epochs_G) // args.decay)+1
         lr = (0.977 ** lr_sq) * lr
     
+    print("!!!!", lr)
+
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
@@ -207,32 +256,35 @@ def kdloss(y, teacher_scores):
 
 def train_G(args, idx, net, generator, teacher, epoch,
             optimizer_S, optimizer_G, criterion, 
-            loss_r_feature_layers, lim_0, lim_1,
-            mean, var):
+            lim_0, lim_1, # mean, var,
+            loss_r_feature_layers): 
+
+    print("\n>>>>> Train Generators <<<<<\n")
 
     if args.dataset != 'MNIST':
         adjust_learning_rate_G(args, optimizer_G, epoch)
     
     net.train()
-    
+    loss = None
+
     for i in range(200):
+    # for i in range(1):
 
         z = Variable(torch.randn(args.batch_size, args.latent_dim)).cuda()
 
         optimizer_G.zero_grad()
 
         gen_imgs = generator(z)
-        
+
         ### one-hot loss
         outputs_T, features_T = teacher(gen_imgs, out_feature=True)
+
         pred = outputs_T.data.max(1)[1]
         loss_activation = -features_T.abs().mean()
         loss_one_hot = criterion(outputs_T,pred)
         softmax_o_T = torch.nn.functional.softmax(outputs_T, dim = 1).mean(dim = 0)
         loss_information_entropy = (softmax_o_T * torch.log10(softmax_o_T)).sum()
         # loss = loss_one_hot * args.oh + loss_information_entropy * args.ie + loss_activation * args.a 
-
-        loss = loss_one_hot
         
         ### KD loss
         outputs_S, features_S = net(gen_imgs, out_feature=True)
@@ -252,23 +304,22 @@ def train_G(args, idx, net, generator, teacher, epoch,
         loss_var = torch.norm(diff1) + torch.norm(diff2) + torch.norm(diff3) + torch.norm(diff4)
 
         ### R_feature loss (ToDo)
-        # loss_distr = sum([mod.r_feature for mod in loss_r_feature_layers])
-        # nch_G = gen_imgs[0].shape[1]
-        # mean_G = gen_imgs[0].mean([0, 2, 3])
-        # var_G = gen_imgs[0].permute(1, 0, 2, 3).contiguous().view([nch_G, -1]).var(1, unbiased=False)
+        loss_distr = sum([mod.r_feature for mod in loss_r_feature_layers])
 
-        nch_G = gen_imgs.shape[1]
-        mean_G = gen_imgs.mean([0, 2, 3])
-        var_G = gen_imgs.permute(1, 0, 2, 3).contiguous().view([nch_G, -1]).var(1, unbiased=False)
-        loss_distr = torch.norm(var_G - var, 2) + torch.norm(mean_G - mean, 2)
+        # nch_G = gen_imgs.shape[1]
+        # mean_G = gen_imgs.mean([0, 2, 3])
+        # var_G = gen_imgs.permute(1, 0, 2, 3).contiguous().view([nch_G, -1]).var(1, unbiased=False)
+        # loss_distr = torch.norm(var_G - var, 2) + torch.norm(mean_G - mean, 2)
 
         ### only train generator before n_epochs_G epoch
-        loss = loss + (6e-3 * loss_var)
-        loss = loss + (1.5e-5 * torch.norm(gen_imgs, 2))  # l2 loss
-        loss = loss + 10*loss_distr                       # best for noise before BN
+        loss = loss_one_hot
+        loss += (6e-3 * loss_var)
+        loss += (1.5e-5 * torch.norm(gen_imgs, 2))  # l2 loss
+        # loss += 10*loss_distr                       # best for noise before BN
+        loss += 100*loss_distr                       # best for noise before BN
 
         if i % 10 == 0:
-            print('Train - Epoch %d, Batch: %d, Loss: %f' % (epoch, i, loss.data.item()))
+            print('Train G_%d, Epoch %d, Batch: %d, Loss: %f' % (idx, epoch, i, loss.data.item()))
 
         if has_wandb:
             wandb.log({"loss_G/OneHot_Loss_"+str(idx): loss_one_hot.item()})
@@ -278,18 +329,20 @@ def train_G(args, idx, net, generator, teacher, epoch,
             wandb.log({"loss_G/L2_Loss_"+str(idx): torch.norm(gen_imgs, 2).item()})
             wandb.log({"G_perf/total_loss_"+str(idx): loss.data.item()})
 
+        # loss.backward(retain_graph=True)
         loss.backward()
         optimizer_G.step()
 
 
 # --------------------
 
-def train_S(args, net, G_list, teacher, epoch, optimizer_S, losses):
+def train_S(args, net, G_list, teacher, epoch, optimizer_S):
     print(">>>>> Train Student <<<<<")
 
     net.train()
 
     for i in range(200):
+    # for i in range(50):
 
         loss_total = None
 
@@ -325,15 +378,16 @@ def train_S(args, net, G_list, teacher, epoch, optimizer_S, losses):
                 loss_total = loss
             else:
                 loss_total += loss
-            losses[gidx].append(loss.item())
-            del(generator)
+
+            # del(generator)
 
             # print('Train - generator %d, Loss: %f' % (gidx, loss_total.data.item()))
             
             if has_wandb:
                 wandb.log({"loss_S/KD_Loss_G_"+str(gidx): loss.item()})
-                # wandb.log({"loss_S/KD_Loss_S": loss.item()})
-                wandb.log({"total_loss_S": loss_total.item()})
+
+        if has_wandb:
+            wandb.log({"total_loss_S": loss_total.item()})
 
         if i % 10 == 0:
             print('Student Train - Epoch %d, Batch: %d, Loss: %f' % (epoch, i, loss_total.data.item()))
@@ -345,26 +399,31 @@ def train_S(args, net, G_list, teacher, epoch, optimizer_S, losses):
 
 def test(args, net, data_test_loader, criterion):
 
-    global acc, acc_best
+    # global acc, acc_best
 
     net.eval()
     total_correct = 0
     avg_loss = 0.0
+    total_len = 0
+
     with torch.no_grad():
         for i, (images, labels) in enumerate(data_test_loader):
             images, labels = Variable(images).cuda(), Variable(labels).cuda()
             output = net(images)
+            # print(output)
             avg_loss += criterion(output, labels).sum()
             pred = output.data.max(1)[1]
+            # print(pred)
             total_correct += pred.eq(labels.data.view_as(pred)).sum()
- 
-    avg_loss /= len(data_test_loader)
-    acc = float(total_correct) / len(data_test_loader)
+            total_len += labels.size(0)
 
-    if acc_best < acc:
-        acc_best = acc
+    avg_loss /= len(data_test_loader)
+    acc = float(total_correct) / total_len
+
+    # if acc_best < acc:
+    #     acc_best = acc
         
-    print('Test Avg. Loss: %f, Accuracy: %f' % (avg_loss.data.item(), acc))
+    print('\n|||| Test Avg. Loss: %f, Accuracy: %f' % (avg_loss.data.item(), acc))
     
     if has_wandb:
         wandb.log({"test_loss": avg_loss.data.item()})
@@ -383,29 +442,41 @@ def test_S(args, net, len_G, num_classes, criterion):
 
     with torch.no_grad():
 
-        batch_idx = 0
+        # batch_idx = 0
         
         for i in range(len_G):
-            _, test_loader = get_split_cifar10(args, args.batch_size, num_classes*i, num_classes*(i+1))
+
+            start_class = i*num_classes
+            end_class = (i+1)*num_classes
+            print("test_S start_class: "+str(start_class)+" end_class: "+str(end_class))
+
+            _, test_loader = get_split_cifar10(args, args.batch_size, start_class, end_class*(i+1))
 
             for images, labels in test_loader:
                 images, labels = Variable(images).cuda(), Variable(labels).cuda()
                 outputs = net(images)
-                loss = criterion(outputs, labels)
+                loss = criterion(outputs, labels).sum()
 
                 losses[i] += loss.item()
-                _, predicted = outputs.topk(5, 1, True, True)
-                predicted = predicted.t()
-                correct[i] += predicted.eq(labels.view(1, -1).expand_as(predicted)).sum().item()
-
+                pred = outputs.data.max(1)[1]
+                correct[i] += pred.eq(labels.data.view_as(pred)).sum().item()
+                
+                # losses[i] += loss.item()
+                # _, predicted = outputs.topk(5, 1, True, True)
+                # predicted = predicted.t()
+                # correct[i] += predicted.eq(labels.view(1, -1).expand_as(predicted)).sum().item()
                 total[i] += labels.size(0)
-                batch_idx += 1
+                # batch_idx += 1
 
-            print('Generator {}:'.format(i + 1))
-            print('Loss: %.3f | Acc: %.3f%% (%d/%d)' % (losses[i]/(1*(batch_idx+1)), 100.*correct[i]/total[i], correct[i], total[i]))
+            # print('Generator {}:'.format(i + 1))
+            # print('Loss: %.3f | Acc: %.3f%% (%d/%d)' % (losses[i]/(1*(batch_idx+1)), 100.*correct[i]/total[i], correct[i], total[i]))
 
-            loss_tmp = losses[i]/(1*(batch_idx+1))
-            acc_tmp = 100.*correct[i]/total[i]
+            loss_tmp = losses[i]/len(test_loader)
+            acc_tmp = 100. * correct[i] / total[i]
+
+            # loss_tmp = losses[i]/(1*(batch_idx+1))
+            # acc_tmp = 100.*correct[i]/total[i]
+
             if has_wandb:
                 wandb.log({"S_perf_test/S_test_loss_"+str(i+1): loss_tmp})
                 wandb.log({"S_perf_test/S_test_acc_"+str(i+1): acc_tmp})
@@ -415,8 +486,7 @@ def test_S(args, net, len_G, num_classes, criterion):
         wandb.log({"S_test_acc_total": acc_total})
 
     print('>>>>> Total:')
-    print('Acc: %.3f%% (%d/%d)' % (100. * sum(correct) / sum(total), sum(correct), sum(total)))
-    print('>>>>> Finished student validation')
+    print('Acc: %.3f%% (%d/%d)' % (100* sum(correct) / sum(total), sum(correct), sum(total)))
 
 #############################################################
 
@@ -434,6 +504,11 @@ def main():
     teacher = torch.load(args.teacher_dir + 'teacher_acc_95.3').cuda()
     teacher.eval()
     teacher = nn.DataParallel(teacher)
+    
+    # print("||||||||||||||")
+    # # for name, module in teacher.named_modules():
+    # #     print(name)
+    # print("||||||||||||||")
 
     # -------------------------------------
     save_path = 'cache/ckpts/multi_'+args.ext
@@ -442,12 +517,43 @@ def main():
     
     # ------------------------------------------------
 
-    ## Create hooks for feature statistics catching
+    ### Create hooks for feature statistics catching
+    mean_layers_dictionary = torch.load("stats/mean_resnet34_"+args.hook_type+".pth")
+    var_layers_dictionary = torch.load("stats/var_resnet34_"+args.hook_type+".pth")
+
+    mean_layers_dictionary = {f'module.{k}': v for k, v in mean_layers_dictionary.items()}
+    var_layers_dictionary = {f'module.{k}': v for k, v in var_layers_dictionary.items()}
+
+    # print("\n||||||||||||||")
+    # for name, W in teacher.named_parameters():
+    #     if ('bn' in name) and ("weight" in name):
+    #         print(name, W.shape)
+    # print("||||||||||||||\n")
+    # exit(0)
+
+    # for i in mean_layers_dictionary:
+    #     print(i, mean_layers_dictionary[i].shape, var_layers_dictionary[i].shape)
+
+    # print("mean_layers_dictionary", mean_layers_dictionary.keys())
+    # print("\nvar_layers_dictionary", var_layers_dictionary.keys())
+
     loss_r_feature_layers = []
-    for module in teacher.modules():
-        if isinstance(module, nn.BatchNorm2d):
-            loss_r_feature_layers.append(DeepInversionFeatureHook(module))
-   
+    name_layer = []
+    for name, module in teacher.named_modules():
+        # if isinstance(module, nn.BatchNorm2d):
+        if ("bn" in name) or ("downsample.1" in name):
+        # if name in mean_layers_dictionary.keys():
+            # print("1111", name)
+            aa = DeepInversionFeatureHook(args, name, module, mean_layers_dictionary, var_layers_dictionary)
+            loss_r_feature_layers.append(aa)
+            name_layer.append(name)
+    # exit(0)
+
+    # hook_for_display = None
+    # if hook_for_display is not None:
+    #     hook_for_display = hook_for_display
+
+
     # setting up the range for jitter
     lim_0, lim_1 = 2, 2
 
@@ -460,6 +566,7 @@ def main():
 
         ### specific for cifar10
         num_classes = int(10/n)
+
         ### iteratively train generators
         for idx in range(0, n):
             start_class = idx*num_classes
@@ -475,44 +582,41 @@ def main():
             ### Create dataset
                 
             if args.dataset == 'cifar10':
-                _, data_test_loader = get_split_cifar10(args, args.batch_size, start_class, end_class)
-                # print(len(data_train_loader), len(data_test_loader))
+                data_train_loader, data_test_loader = get_split_cifar10(args, args.batch_size, start_class, end_class)
                 criterion = torch.nn.CrossEntropyLoss().cuda()
                 optimizer_G = torch.optim.Adam(generator.parameters(), lr=args.lr_G)
                 ### student
                 net = resnet.ResNet18().cuda()
                 optimizer_S = torch.optim.SGD(net.parameters(), lr=args.lr_S, momentum=0.9, weight_decay=5e-4)
-                ### sample for statistics
-                train_sample_loader, _ = get_split_cifar10(args, 10, start_class, end_class)
-
-            for i, (images, labels) in enumerate(train_sample_loader):
-                if i == 0:
-                    images, labels = images.cuda(), labels.cuda()
-
-                    # print("!!!!!!!!!!!!!")
-                    # print(images.shape, labels.shape)
-
-                    nch = images.shape[1]
-                    mean = images.mean([0, 2, 3])
-                    var = images.permute(1, 0, 2, 3).contiguous().view([nch, -1]).var(1, unbiased=False)
-
-                    print(mean, var)
-
-                    break
+                
+            # # ### sample for statistics
+            # sample_images, _ = next(iter(data_train_loader))
+            # sample_images = sample_images[:args.num_sample]
+            # sample_images= sample_images.cuda()
+            # nch_sample = sample_images.shape[1]
+            # mean_sample = sample_images.mean([0, 2, 3])
+            # var_sample = sample_images.permute(1, 0, 2, 3).contiguous().view([nch_sample, -1]).var(1, unbiased=False)
 
             # ------------------------------------------------
             ### start training generator
 
-            for e in range(start_epoch, args.n_epochs_G):
+            for e in range(start_epoch, args.n_epochs_G+1):
                 if has_wandb:
                     wandb.log({"epoch": e})
 
-            # for e in range(start_epoch, 2):
-
                 train_G(args, idx, net, generator, teacher, e, 
                             optimizer_S, optimizer_G, criterion, 
-                            loss_r_feature_layers, lim_0, lim_1,
-                            mean, var)
+                            lim_0, lim_1, # mean_sample, var_sample,
+                            loss_r_feature_layers)
+        
+                # #||||||||||||||||||||||||
+                # # print(aa)
+                # mean_layers_check = dict(zip(name_layer, aa.mean_layers))
+                # mean_layers_check = collections.OrderedDict(mean_layers_check)
+                # for i in mean_layers_check:
+                #     print(i, mean_layers_check[i].shape)
+                # #||||||||||||||||||||||||
+
 
                 test(args, net, data_test_loader, criterion)
             
@@ -602,36 +706,36 @@ def main():
                 start_epoch = resume_epoch+1
         # ------------------------------------------------
 
-        for e in range(start_epoch, args.n_epochs):
+        for e in range(start_epoch+1, args.n_epochs):
 
             if has_wandb:
                 wandb.log({"epoch": e})
 
-            losses = [[] for _ in range(len(G_list))]
-            accuracy = [[] for _ in range(len(G_list))]
+            # losses = [[] for _ in range(len(G_list))]
+            # accuracy = [[] for _ in range(len(G_list))]
 
             if args.dataset != 'MNIST':
                 adjust_learning_rate(args, optimizer_S, e)
 
-            train_S(args, net, G_list, teacher, e, optimizer_S, losses)
+           #  print("111111111")
+            train_S(args, net, G_list, teacher, e, optimizer_S)
 
             ### Checking student accuracy
-            if e % 1 == 0:
-                print(">>> Checking student accuracy")
-                test_S(args, net, len(G_list), num_classes, criterion)
+            print(">>> Checking student accuracy")
+            test_S(args, net, len(G_list), num_classes, criterion)
 
-                #### save student model
-                print("-------> Model saved!!")
-                save_name = "trainS_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.fix_G, args.latent_dim,
-                                                                              args.n_epochs, args.n_epochs_G,
-                                                                              args.lr_G, args.lr_S)
-                # save_name = "student.pth"
-                torch.save({'epoch': e,
-                            'S_state_dict': net.state_dict(),
-                            'S_optimizer_state_dict': optimizer_S.state_dict()},
-                            save_path+"/"+save_name)
-        
-        test(args, net, data_test_loader, criterion)
+            #### save student model
+            print("-------> Model saved!!")
+            save_name = "trainS_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.fix_G, args.latent_dim,
+                                                                            args.n_epochs, args.n_epochs_G,
+                                                                            args.lr_G, args.lr_S)
+            # save_name = "student.pth"
+            torch.save({'epoch': e,
+                        'S_state_dict': net.state_dict(),
+                        'S_optimizer_state_dict': optimizer_S.state_dict()},
+                        save_path+"/"+save_name)
+    
+            test(args, net, data_test_loader, criterion)
 
 #############################################################
 if __name__ == '__main__':

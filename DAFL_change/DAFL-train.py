@@ -21,10 +21,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 from torchvision.datasets.mnist import MNIST
-from lenet import LeNet5Half
+from DAFL_change.model.lenet import LeNet5Half
 from torchvision.datasets import CIFAR10
 from torchvision.datasets import CIFAR100
-import resnet
+import DAFL_change.resnet as resnet
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, default='MNIST', choices=['MNIST','cifar10','cifar100'])

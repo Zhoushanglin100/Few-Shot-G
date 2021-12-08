@@ -78,10 +78,11 @@ def get_split_cifar10(args, batch_size, start, end):
     # print("!!! target_test_idx", target_test_idx)
 
     train_loader = torch.utils.data.DataLoader(
-        torch.utils.data.dataset.Subset(train, np.where(target_train_idx == 1)[0]), batch_size=batch_size)
+        torch.utils.data.dataset.Subset(train, np.where(target_train_idx == 1)[0]), 
+        batch_size=batch_size, shuffle=True, num_workers=8)
     test_loader = torch.utils.data.DataLoader(
-        torch.utils.data.dataset.Subset(test, np.where(target_test_idx == 1)[0]),
-                                              batch_size=batch_size)
+        torch.utils.data.dataset.Subset(test, np.where(target_test_idx == 1)[0]), 
+        batch_size=100)
     # print("!!! train_loader", train_loader)
     # print("!!! test_loader", test_loader)
 
