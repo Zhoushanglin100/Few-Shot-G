@@ -70,23 +70,24 @@ print(args)
 print("-----------------------------")
 
 if has_wandb:
-    # if args.train_G:
-    #     id = "trainG-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
-    #                                                                args.batch_size, 
-    #                                                                args.fix_G, 
-    #                                                                args.latent_dim,
-    #                                                                args.n_epochs, args.n_epochs_G,
-    #                                                                args.lr_G, args.lr_S)
-    # if args.train_S:
-    #     id = "trainS-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
-    #                                                                 args.batch_size, 
-    #                                                                 args.fix_G, 
-    #                                                                 args.latent_dim,
-    #                                                                 args.n_epochs, args.n_epochs_G,
-    #                                                                 args.lr_G, args.lr_S)
-
-    # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args, resume="allow", id=id)
-    wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)
+    if args.train_G:
+        # id = "trainG-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
+        #                                                            args.batch_size, 
+        #                                                            args.fix_G, 
+        #                                                            args.latent_dim,
+        #                                                            args.n_epochs, args.n_epochs_G,
+        #                                                            args.lr_G, args.lr_S)
+        id = "trainG-{}-".format(args.ext)
+    if args.train_S:
+        # id = "trainS-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
+        #                                                             args.batch_size, 
+        #                                                             args.fix_G, 
+        #                                                             args.latent_dim,
+        #                                                             args.n_epochs, args.n_epochs_G,
+        #                                                             args.lr_G, args.lr_S)
+        id = "trainS-{}-".format(args.ext)
+    wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args, resume="allow", id=id)
+    # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)
     wandb.config.update(args)
 
 acc = 0
