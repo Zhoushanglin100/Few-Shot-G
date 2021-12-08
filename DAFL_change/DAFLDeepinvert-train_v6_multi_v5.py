@@ -37,7 +37,7 @@ parser.add_argument('--train_S', action='store_true', default=False,
                     help='whether to train student')
 
 parser.add_argument('--n_divid', type=int, default=10, help='number of division of dataset')
-parser.add_argument('--num_sample', type=int, default=50, help='number of samples for statistics')
+parser.add_argument('--total_class', type=int, default=10, help='total number of classes of dataset')
 
 parser.add_argument('--n_epochs_G', type=int, default=50, help='number of epochs of training generator')
 parser.add_argument('--n_epochs', type=int, default=400, help='number of epochs of training total')
@@ -70,27 +70,23 @@ print(args)
 print("-----------------------------")
 
 if has_wandb:
-    if args.train_G:
-        # id = "trainG-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
-        #                                                            args.batch_size, 
-        #                                                            args.fix_G, 
-        #                                                            args.latent_dim,
-        #                                                            args.n_epochs, args.n_epochs_G,
-        #                                                            args.lr_G, args.lr_S)
-        id = "trainG-{}".format(args.ext)
-    if args.train_S:
-        # id = "trainS-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
-        #                                                             args.batch_size, 
-        #                                                             args.fix_G, 
-        #                                                             args.latent_dim,
-        #                                                             args.n_epochs, args.n_epochs_G,
-        #                                                             args.lr_G, args.lr_S)
-        id = "trainS-{}".format(args.ext)
+    # if args.train_G:
+    #     id = "trainG-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
+    #                                                                args.batch_size, 
+    #                                                                args.fix_G, 
+    #                                                                args.latent_dim,
+    #                                                                args.n_epochs, args.n_epochs_G,
+    #                                                                args.lr_G, args.lr_S)
+    # if args.train_S:
+    #     id = "trainS-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
+    #                                                                 args.batch_size, 
+    #                                                                 args.fix_G, 
+    #                                                                 args.latent_dim,
+    #                                                                 args.n_epochs, args.n_epochs_G,
+    #                                                                 args.lr_G, args.lr_S)
 
-    wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args, resume="allow", id=id)
-    # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)
-    
-    # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args, resume="allow", id='S-1G-Output-R100')
+    # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args, resume="allow", id=id)
+    wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)
     wandb.config.update(args)
 
 acc = 0
@@ -316,7 +312,7 @@ def train_G(args, idx, net, generator, teacher, epoch,
         loss += (6e-3 * loss_var)
         loss += (1.5e-5 * torch.norm(gen_imgs, 2))  # l2 loss
         # loss += 10*loss_distr                       # best for noise before BN
-        loss += 100*loss_distr                       # best for noise before BN
+        loss += 10*loss_distr                       # best for noise before BN
 
         if i % 10 == 0:
             print('Train G_%d, Epoch %d, Batch: %d, Loss: %f' % (idx, epoch, i, loss.data.item()))
@@ -506,66 +502,27 @@ def main():
     teacher = nn.DataParallel(teacher)
     
     # print("||||||||||||||")
-    # # for name, module in teacher.named_modules():
-    # #     print(name)
+    # for name, module in teacher.named_modules():
+    #     print(name)
     # print("||||||||||||||")
+    # exit(0)
 
     # -------------------------------------
     save_path = 'cache/ckpts/multi_'+args.ext
     if not os.path.exists(save_path):
         os.makedirs(save_path)
-    
-    # ------------------------------------------------
-
-    ### Create hooks for feature statistics catching
-    mean_layers_dictionary = torch.load("stats/mean_resnet34_"+args.hook_type+".pth")
-    var_layers_dictionary = torch.load("stats/var_resnet34_"+args.hook_type+".pth")
-
-    mean_layers_dictionary = {f'module.{k}': v for k, v in mean_layers_dictionary.items()}
-    var_layers_dictionary = {f'module.{k}': v for k, v in var_layers_dictionary.items()}
-
-    # print("\n||||||||||||||")
-    # for name, W in teacher.named_parameters():
-    #     if ('bn' in name) and ("weight" in name):
-    #         print(name, W.shape)
-    # print("||||||||||||||\n")
-    # exit(0)
-
-    # for i in mean_layers_dictionary:
-    #     print(i, mean_layers_dictionary[i].shape, var_layers_dictionary[i].shape)
-
-    # print("mean_layers_dictionary", mean_layers_dictionary.keys())
-    # print("\nvar_layers_dictionary", var_layers_dictionary.keys())
-
-    loss_r_feature_layers = []
-    name_layer = []
-    for name, module in teacher.named_modules():
-        # if isinstance(module, nn.BatchNorm2d):
-        if ("bn" in name) or ("downsample.1" in name):
-        # if name in mean_layers_dictionary.keys():
-            # print("1111", name)
-            aa = DeepInversionFeatureHook(args, name, module, mean_layers_dictionary, var_layers_dictionary)
-            loss_r_feature_layers.append(aa)
-            name_layer.append(name)
-    # exit(0)
-
-    # hook_for_display = None
-    # if hook_for_display is not None:
-    #     hook_for_display = hook_for_display
-
-
-    # setting up the range for jitter
-    lim_0, lim_1 = 2, 2
 
     # ------------------------------------------------
     ### train generator
     # if start_epoch <= args.n_epochs_G:
     if args.train_G:
 
-        n = int(args.n_divid)
+        # setting up the range for jitter
+        lim_0, lim_1 = 2, 2
 
-        ### specific for cifar10
-        num_classes = int(10/n)
+        n = int(args.n_divid)
+        total = int(args.total_class)
+        num_classes = int(total/n)
 
         ### iteratively train generators
         for idx in range(0, n):
@@ -579,9 +536,10 @@ def main():
             generator = nn.DataParallel(generator)
 
             # ------------------------------------------------
-            ### Create dataset
                 
             if args.dataset == 'cifar10':
+
+                ### Create dataset
                 data_train_loader, data_test_loader = get_split_cifar10(args, args.batch_size, start_class, end_class)
                 criterion = torch.nn.CrossEntropyLoss().cuda()
                 optimizer_G = torch.optim.Adam(generator.parameters(), lr=args.lr_G)
@@ -589,13 +547,40 @@ def main():
                 net = resnet.ResNet18().cuda()
                 optimizer_S = torch.optim.SGD(net.parameters(), lr=args.lr_S, momentum=0.9, weight_decay=5e-4)
                 
-            # # ### sample for statistics
-            # sample_images, _ = next(iter(data_train_loader))
-            # sample_images = sample_images[:args.num_sample]
-            # sample_images= sample_images.cuda()
-            # nch_sample = sample_images.shape[1]
-            # mean_sample = sample_images.mean([0, 2, 3])
-            # var_sample = sample_images.permute(1, 0, 2, 3).contiguous().view([nch_sample, -1]).var(1, unbiased=False)
+                # ------------------------------------------------
+
+                ### Create hooks for feature statistics catching
+                stat_path = "stats_multi/"+args.hook_type
+                mean_layers_dictionary = torch.load(stat_path+"/mean_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
+                var_layers_dictionary = torch.load(stat_path+"/var_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
+
+                mean_layers_dictionary = {f'module.{k}': v for k, v in mean_layers_dictionary.items()}
+                var_layers_dictionary = {f'module.{k}': v for k, v in var_layers_dictionary.items()}
+                
+                # print("\n||||||||||||||")
+                # for name, W in teacher.named_parameters():
+                #     if ('bn' in name) and ("weight" in name):
+                #         print(name, W.shape)
+
+                # # for i in mean_layers_dictionary:
+                # #     print(i, mean_layers_dictionary[i].shape, var_layers_dictionary[i].shape)
+
+                # # print("mean_layers_dictionary", mean_layers_dictionary.keys())
+                # # print("\nvar_layers_dictionary", var_layers_dictionary.keys())
+                # print("||||||||||||||\n")
+                # exit(0)
+
+                loss_r_feature_layers = []
+                name_layer = []
+                for name, module in teacher.named_modules():
+                    # if isinstance(module, nn.BatchNorm2d):
+                    if ("bn" in name) or ("downsample.1" in name):
+                    # if name in mean_layers_dictionary.keys():
+                        # print("1111", name)
+                        aa = DeepInversionFeatureHook(args, name, module, mean_layers_dictionary, var_layers_dictionary)
+                        loss_r_feature_layers.append(aa)
+                        name_layer.append(name)
+
 
             # ------------------------------------------------
             ### start training generator
