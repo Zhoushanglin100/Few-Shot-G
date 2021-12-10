@@ -18,7 +18,7 @@
 #                                   --hook_type input \
 #                                   --ext 1Gextract_InR100
 
-CUDA_VISIBLE_DEVICES=1 python3 DAFLDeepinvert-train_v6_multi_v4.py \
+CUDA_VISIBLE_DEVICES=0 python3 DAFLDeepinvert-train_v6_multi_v4.py \
                                     --fix_G \
                                     --train_S \
                                     --n_epochs 2000 \
@@ -29,4 +29,4 @@ CUDA_VISIBLE_DEVICES=1 python3 DAFLDeepinvert-train_v6_multi_v4.py \
                                     --num_sample 100 \
                                     --hook_type output \
                                     --resume \
-                                    --ext 1GextractR100
+                                    --ext 1Gextract

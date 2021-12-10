@@ -47,6 +47,9 @@ parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet34',
                         ' (default: resnet18)')
 parser.add_argument('--hook_type', type=str, default='output', choices=['input', 'output'],
                     help = "hook statistics from input data or output data")
+parser.add_argument('--ext', type=str, default='')
+
+
 parser.add_argument('--teacher_dir', type=str, default='cache/models/')
 
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
@@ -350,7 +353,7 @@ def train(args, train_loader, model, criterion, optimizer, epoch, start_class, e
         # print(mean_layers_dictionary.keys())
 
         ### save generated statistics
-        save_path = "stats_multi/"+args.hook_type
+        save_path = "stats/stats_multi_"+args.ext+"/"+args.hook_type
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         torch.save(mean_layers_dictionary, save_path+"/mean_"+args.arch+"_"+"start-"+str(start_class)+"_end-"+str(end_class)+".pth")
