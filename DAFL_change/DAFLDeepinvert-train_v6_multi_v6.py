@@ -10,13 +10,13 @@ import collections
 import torch.nn as nn
 import torch.nn.functional as F
 
-# try:
-#     import wandb
-#     has_wandb = True
-# except ImportError: 
-#     has_wandb = False
+try:
+    import wandb
+    has_wandb = True
+except ImportError: 
+    has_wandb = False
 
-has_wandb = False
+# has_wandb = False
 
 ###########################################
 
