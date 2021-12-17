@@ -77,7 +77,7 @@ if has_wandb:
         #                                                            args.latent_dim,
         #                                                            args.n_epochs, args.n_epochs_G,
         #                                                            args.lr_G, args.lr_S)
-        id = "trainG-{}-".format(args.ext)
+        id = "trainG-{}".format(args.ext)
     if args.train_S:
         # id = "trainS-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
         #                                                             args.batch_size, 
@@ -85,7 +85,7 @@ if has_wandb:
         #                                                             args.latent_dim,
         #                                                             args.n_epochs, args.n_epochs_G,
         #                                                             args.lr_G, args.lr_S)
-        id = "trainS-{}-".format(args.ext)
+        id = "trainS-{}".format(args.ext)
     wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args, resume="allow", id=id)
     # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)
     wandb.config.update(args)
@@ -354,14 +354,14 @@ def train_S(args, net, G_list, teacher, epoch, optimizer_S):
             ### KD loss
             z = Variable(torch.randn(args.batch_size, args.latent_dim)).cuda()
             gen_imgs_gid = generator(z)
-            print("------>", gen_imgs_gid.shape)
+            # print("------>", gen_imgs_gid.shape)
 
             if gidx == 0:
                 gen_imgs = gen_imgs_gid
             else:
                 gen_imgs = torch.cat((gen_imgs, gen_imgs_gid), 0)
 
-        print("======>>>", i, gen_imgs.shape)
+        # print("======>>>", i, gen_imgs.shape)
         # exit(0)
 
         outputs_T, features_T = teacher(gen_imgs, out_feature=True)
