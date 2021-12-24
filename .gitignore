@@ -1,19 +1,19 @@
 .vscode
 
+### other repo
 DeepInversion_orig
 imagecluster
 image-clustering
-
-
-DAFL_change/__pycache__
-DAFL_change/wandb
-DAFL_change/cache
-DAFL_change/figure
-DAFL_change/stats
+SPICE
+Unsupervised-Classification
 
 DAFL/cache/
 
 DeepInversion_multi/data
 
-DAFL_change/SPICE
-DAFL_change/Unsupervised-Classification
+### mine
+DAFL_change/__pycache__
+DAFL_change/wandb
+DAFL_change/cache
+DAFL_change/figure
+DAFL_change/stats
