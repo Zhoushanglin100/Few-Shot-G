@@ -9,6 +9,7 @@ import collections
 
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.models as models
 
 try:
     import wandb
@@ -77,7 +78,7 @@ if has_wandb:
         #                                                            args.latent_dim,
         #                                                            args.n_epochs, args.n_epochs_G,
         #                                                            args.lr_G, args.lr_S)
-        id = "trainG-{}".format(args.ext)
+        id = "{}_trainG-{}".format(args.dataset, args.ext)
     if args.train_S:
         # id = "trainS-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
         #                                                             args.batch_size, 
@@ -85,7 +86,7 @@ if has_wandb:
         #                                                             args.latent_dim,
         #                                                             args.n_epochs, args.n_epochs_G,
         #                                                             args.lr_G, args.lr_S)
-        id = "trainS-{}".format(args.ext)
+        id = "{}_trainS-{}".format(args.dataset, args.ext)
     wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args, resume="allow", id=id)
     # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)
     wandb.config.update(args)
@@ -445,7 +446,10 @@ def test_S(args, net, len_G, num_classes, criterion):
             end_class = (i+1)*num_classes
             print("test_S start_class: "+str(start_class)+" end_class: "+str(end_class))
 
-            _, test_loader = get_split_cifar10(args, args.batch_size, start_class, end_class*(i+1))
+            if args.dataset == 'cifar10':
+                _, test_loader = get_split_cifar10(args, args.batch_size, start_class, end_class*(i+1))
+            elif args.dataset == 'cifar100':
+                _, test_loader = get_split_cifar100(args, args.batch_size, start_class, end_class*(i+1))
 
             for images, labels in test_loader:
                 images, labels = Variable(images).cuda(), Variable(labels).cuda()
@@ -495,8 +499,15 @@ def main():
     start_epoch = 1
 
     # -----------------------------------------------
+    if args.dataset == "cifar10":
+        teacher = torch.load(args.teacher_dir + 'teacher_acc_95.3').cuda()
+    elif args.dataset == "cifar100":
+        teacher = resnet.ResNet34(num_classes=100).cuda()
+        ckpt_teacher = torch.load("cache/pretrained/cifar100_resnet34.pth")
+        teacher.load_state_dict(ckpt_teacher['state_dict'])
+    else:
+        teacher = models.resnet34(pretrained=True)
 
-    teacher = torch.load(args.teacher_dir + 'teacher_acc_95.3').cuda()
     teacher.eval()
     teacher = nn.DataParallel(teacher)
     
@@ -507,7 +518,7 @@ def main():
     # exit(0)
 
     # -------------------------------------
-    save_path = 'cache/ckpts/multi_'+args.ext
+    save_path = 'cache/ckpts_'+args.dataset+'/multi_'+args.ext
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
@@ -552,39 +563,52 @@ def main():
                 net = resnet.ResNet18().cuda()
                 optimizer_S = torch.optim.SGD(net.parameters(), lr=args.lr_S, momentum=0.9, weight_decay=5e-4)
                 
-                # ------------------------------------------------
-
                 ### Create hooks for feature statistics catching
-                stat_path = "stats/stats_multi_"+args.ext+"/"+args.hook_type
+                stat_path = "stats_"+args.dataset+"/stats_multi_"+args.ext+"/"+args.hook_type
                 mean_layers_dictionary = torch.load(stat_path+"/mean_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
                 var_layers_dictionary = torch.load(stat_path+"/var_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
 
-                mean_layers_dictionary = {f'module.{k}': v for k, v in mean_layers_dictionary.items()}
-                var_layers_dictionary = {f'module.{k}': v for k, v in var_layers_dictionary.items()}
+            if args.dataset == 'cifar100':
+                ### optimization
+                criterion = torch.nn.CrossEntropyLoss().cuda()
+                optimizer_G = torch.optim.Adam(generator.parameters(), lr=args.lr_G)
+                ### student
+                net = resnet.ResNet18(num_classes=100).cuda()
+                optimizer_S = torch.optim.SGD(net.parameters(), lr=args.lr_S, momentum=0.9, weight_decay=5e-4)
                 
-                # print("\n||||||||||||||")
-                # for name, W in teacher.named_parameters():
-                #     if ('bn' in name) and ("weight" in name):
-                #         print(name, W.shape)
+                ### Create hooks for feature statistics catching
+                stat_path = "stats_"+args.dataset+"/stats_multi_"+args.ext+"/"+args.hook_type
+                mean_layers_dictionary = torch.load(stat_path+"/mean_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
+                var_layers_dictionary = torch.load(stat_path+"/var_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
 
-                # # for i in mean_layers_dictionary:
-                # #     print(i, mean_layers_dictionary[i].shape, var_layers_dictionary[i].shape)
 
-                # # print("mean_layers_dictionary", mean_layers_dictionary.keys())
-                # # print("\nvar_layers_dictionary", var_layers_dictionary.keys())
-                # print("||||||||||||||\n")
-                # exit(0)
 
-                loss_r_feature_layers = []
-                name_layer = []
-                for name, module in teacher.named_modules():
-                    # if isinstance(module, nn.BatchNorm2d):
-                    if ("bn" in name) or ("downsample.1" in name):
-                    # if name in mean_layers_dictionary.keys():
-                        # print("1111", name)
-                        aa = DeepInversionFeatureHook(args, name, module, mean_layers_dictionary, var_layers_dictionary)
-                        loss_r_feature_layers.append(aa)
-                        name_layer.append(name)
+            # print("\n||||||||||||||")
+            # for name, W in teacher.named_parameters():
+            #     if ('bn' in name) and ("weight" in name):
+            #         print(name, W.shape)
+
+            # # for i in mean_layers_dictionary:
+            # #     print(i, mean_layers_dictionary[i].shape, var_layers_dictionary[i].shape)
+
+            # # print("mean_layers_dictionary", mean_layers_dictionary.keys())
+            # # print("\nvar_layers_dictionary", var_layers_dictionary.keys())
+            # print("||||||||||||||\n")
+            # exit(0)
+
+            mean_layers_dictionary = {f'module.{k}': v for k, v in mean_layers_dictionary.items()}
+            var_layers_dictionary = {f'module.{k}': v for k, v in var_layers_dictionary.items()}
+
+            loss_r_feature_layers = []
+            name_layer = []
+            for name, module in teacher.named_modules():
+                # if isinstance(module, nn.BatchNorm2d):
+                if ("bn" in name) or ("downsample.1" in name):
+                # if name in mean_layers_dictionary.keys():
+                    # print("1111", name)
+                    aa = DeepInversionFeatureHook(args, name, module, mean_layers_dictionary, var_layers_dictionary)
+                    loss_r_feature_layers.append(aa)
+                    name_layer.append(name)
 
 
             # ------------------------------------------------
@@ -659,40 +683,24 @@ def main():
             print("!!!! CIFAR-10")
             _, data_test_loader = get_split_cifar10(args, args.batch_size, 0, 10)
 
-            # transform_test = transforms.Compose([
-            #     transforms.ToTensor(),
-            #     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            #     ])
-            # data_test = CIFAR10(args.data,
-            #                 train=False,
-            #                 transform=transform_test)
-            # data_test_loader = DataLoader(data_test, batch_size=100, num_workers=0)
-
             net = resnet.ResNet18().cuda()
             criterion = torch.nn.CrossEntropyLoss().cuda()
             optimizer_S = torch.optim.SGD(net.parameters(), lr=args.lr_S, momentum=0.9, weight_decay=5e-4)
 
         if args.dataset == 'cifar100':
+            print("!!!! CIFAR-100")
             _, data_test_loader = get_split_cifar100(args, args.batch_size, 0, 100)
 
-            # transform_test = transforms.Compose([
-            #     transforms.ToTensor(),
-            #     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            # ])
-            # data_test = CIFAR100(args.data,
-            #                 train=False,
-            #                 transform=transform_test)
-            # data_test_loader = DataLoader(data_test, batch_size=100, num_workers=0)
-
-            net = resnet.ResNet34(num_classes=100).cuda()
+            net = resnet.ResNet18(num_classes=100).cuda()
             criterion = torch.nn.CrossEntropyLoss().cuda()
             optimizer_S = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 
         # ------------------------------------------------
         if args.resume:
-            load_name = "trainS_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.fix_G, args.latent_dim,
-                                                                            args.n_epochs, args.n_epochs_G,
-                                                                            args.lr_G, args.lr_S)
+            load_name = "{}_trainS_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.dataset,
+                                                                                args.fix_G, args.latent_dim,
+                                                                                args.n_epochs, args.n_epochs_G,
+                                                                                args.lr_G, args.lr_S)
             print("!!!! RESUME !!!!")
             # load_name = 'student.pth'
             if os.path.exists(save_path+'/'+load_name):
@@ -723,9 +731,10 @@ def main():
 
             #### save student model
             print("-------> Model saved!!")
-            save_name = "trainS_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.fix_G, args.latent_dim,
-                                                                            args.n_epochs, args.n_epochs_G,
-                                                                            args.lr_G, args.lr_S)
+            save_name = "{}_trainS_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.dataset, 
+                                                                                args.fix_G, args.latent_dim,
+                                                                                args.n_epochs, args.n_epochs_G,
+                                                                                args.lr_G, args.lr_S)
             # save_name = "student.pth"
             torch.save({'epoch': e,
                         'S_state_dict': net.state_dict(),

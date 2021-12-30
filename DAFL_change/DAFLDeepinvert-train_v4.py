@@ -7,6 +7,7 @@
 import os
 from model.lenet import LeNet5
 import resnet as resnet
+
 import torch
 from torch.autograd import Variable
 from torchvision.datasets.mnist import MNIST
@@ -20,13 +21,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import random
 
-# try:
-#     import wandb
-#     has_wandb = True
-# except ImportError: 
-#     has_wandb = False
+try:
+    import wandb
+    has_wandb = True
+except ImportError: 
+    has_wandb = False
 
-has_wandb = False
+# has_wandb = False
 
 ###########################################
 
@@ -42,12 +43,12 @@ parser.add_argument('--resume', action='store_true', default=False,
                     help='whether to resume from ckpt')
 
 parser.add_argument('--n_epochs_G', type=int, default=50, help='number of epochs of training generator')
-parser.add_argument('--n_epochs', type=int, default=400, help='number of epochs of training total')
+parser.add_argument('--n_epochs', type=int, default=2000, help='number of epochs of training total')
 parser.add_argument('--fix_G', action='store_true', default=False,
                     help='whether stop train generator after start training student')
 
 parser.add_argument('--batch_size', type=int, default=256, help='size of the batches')
-parser.add_argument('--lr_G', type=float, default=0.001, help='learning rate of generator')
+parser.add_argument('--lr_G', type=float, default=0.2, help='learning rate of generator')
 parser.add_argument('--lr_S', type=float, default=0.06, help='learning rate of student')
 parser.add_argument('--decay', type=float, default=5, help='decay of learning rate')
 
@@ -62,10 +63,11 @@ args = parser.parse_args()
 
 
 if has_wandb:
-    id = "100-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}-dcy{}".format(args.batch_size, args.fix_G, args.latent_dim,
+    id = "{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.dataset,
+                                                            args.batch_size, args.fix_G, args.latent_dim,
                                                             args.n_epochs, args.n_epochs_G,
-                                                            args.lr_G, args.lr_S, args.decay)
-    wandb.init(project='few-shot', entity='zhoushanglin100', config=args, resume="allow", id=id)
+                                                            args.lr_G, args.lr_S)
+    wandb.init(project='few-shot_multi', entity='zhoushanglin100', config=args, resume="allow", id=id)
     wandb.config.update(args)
 
 img_shape = (args.channels, args.img_size, args.img_size)
@@ -149,6 +151,23 @@ class Generator(nn.Module):
 generator = Generator().cuda()
 ### end gen
 
+# ---------------
+def test_teacher(teacher):
+    teacher.eval()
+    total_correct = 0
+    avg_loss = 0.0
+    with torch.no_grad():
+        for i, (images, labels) in enumerate(data_test_loader):
+            images, labels = Variable(images).cuda(), Variable(labels).cuda()
+            output = teacher(images)
+            avg_loss += criterion(output, labels).sum()
+            pred = output.data.max(1)[1]
+            total_correct += pred.eq(labels.data.view_as(pred)).sum()
+ 
+    avg_loss /= len(data_test)
+    acc = float(total_correct) / len(data_test)
+    print('Test Avg. Loss: %f, Accuracy: %f' % (avg_loss.data.item(), acc))
+
 # ------------------------------------------------
 ### Create dataset
 
@@ -228,7 +247,7 @@ if args.dataset == 'cifar100':
                       
     data_train_loader = DataLoader(data_train, batch_size=args.batch_size, shuffle=True, num_workers=0)
     data_test_loader = DataLoader(data_test, batch_size=100, num_workers=0)
-    net = resnet.ResNet34(num_classes=100).cuda()
+    net = resnet.ResNet18(num_classes=100).cuda()
     criterion = torch.nn.CrossEntropyLoss().cuda()
     
     optimizer_S = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
@@ -236,15 +255,23 @@ if args.dataset == 'cifar100':
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=args.lr_G)
 
 # ----------------------------------------------------------
+if args.dataset == 'cifar10':
+    teacher = torch.load(args.teacher_dir + 'teacher_acc_95.3').cuda()
+if args.dataset == 'cifar100':
+    # teacher = resnet_1.resnet34(num_classes=100).cuda()
+    teacher = resnet.ResNet34(num_classes=100).cuda()
+    ckpt_teacher = torch.load("cache/pretrained/cifar100_resnet34.pth")
+    teacher.load_state_dict(ckpt_teacher['state_dict'])
 
-teacher = torch.load(args.teacher_dir + 'teacher_acc_95.3').cuda()
 teacher.eval()
 teacher = nn.DataParallel(teacher)
 generator = nn.DataParallel(generator)
 # deepinversion
 
+# test_teacher(teacher)   # 74.41%
+
 # -------------------------------------
-save_path = 'cache/ckpts'
+save_path = 'cache/ckpts_'+args.dataset
 if not os.path.exists(save_path):
     os.makedirs(save_path)
 
@@ -257,9 +284,10 @@ if not os.path.exists(save_path):
     #         save_path+"/"+save_name)
 
 if args.resume:
-    load_name = "bz{}_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}_dcy{}.pth".format(args.batch_size, args.fix_G, args.latent_dim,
+    load_name = "{}_bz{}_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.dataset, 
+                                                                    args.batch_size, args.fix_G, args.latent_dim,
                                                                     args.n_epochs, args.n_epochs_G,
-                                                                    args.lr_G, args.lr_S, args.decay)
+                                                                    args.lr_G, args.lr_S)
     if os.path.exists(save_path+'/'+load_name):
         checkpoint = torch.load(save_path+'/'+load_name)
         net.load_state_dict(checkpoint['S_state_dict'])
@@ -453,9 +481,11 @@ def train(epoch, args):
  
     # -------------------------------------------------
     print("-------> Model saved!!")
-    save_name = "bz{}_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}_dcy{}.pth".format(args.batch_size, args.fix_G, args.latent_dim,
-                                                                        args.n_epochs, args.n_epochs_G,
-                                                                        args.lr_G, args.lr_S, args.decay)
+
+    save_name = "{}_bz{}_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.dataset, 
+                                                                    args.batch_size, args.fix_G, args.latent_dim,
+                                                                    args.n_epochs, args.n_epochs_G,
+                                                                    args.lr_G, args.lr_S)
     torch.save({'epoch': epoch,
                 'S_state_dict': net.state_dict(),
                 'S_optimizer_state_dict': optimizer_S.state_dict(),
@@ -496,6 +526,7 @@ def test():
     if has_wandb:
         wandb.log({"test_loss": avg_loss.data.item()})
         wandb.log({"test_acc": acc})
+
 
 #############################################################
 

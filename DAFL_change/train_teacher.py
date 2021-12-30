@@ -4,6 +4,7 @@ import random
 import shutil
 import time
 import warnings
+from enum import Enum
 
 import torch
 import torch.nn as nn
@@ -17,48 +18,28 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
-from kmeans_pytorch import kmeans, kmeans_predict
 
-import resnet as resnet
-
-import collections
-from script import *
-
-import torchvision.models as models
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
     and callable(models.__dict__[name]))
 
-#################################################################
-
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
+# parser.add_argument('data', metavar='DIR',
+#                     help='path to dataset')
 
-parser.add_argument('--dataset', type=str, default='cifar10', 
-                    choices=['MNIST','cifar10','cifar100'])
-parser.add_argument('--data', type=str, default='cache/data/')
-parser.add_argument('--n_divid', type=int, default=10, 
-                    help='number of division of dataset')
-parser.add_argument('--num_clusters', type=int, default=5, 
-                    help='number of clusters')
-
+parser.add_argument('--ext', type=str, default='')
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet34',
                     choices=model_names,
                     help='model architecture: ' +
                         ' | '.join(model_names) +
                         ' (default: resnet18)')
-parser.add_argument('--hook_type', type=str, default='output', choices=['input', 'output'],
-                    help = "hook statistics from input data or output data")
-parser.add_argument('--ext', type=str, default='')
-
-parser.add_argument('--teacher_dir', type=str, default='cache/models/')
-
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=1, type=int, metavar='N',
+parser.add_argument('--epochs', default=90, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=32, type=int,
+parser.add_argument('-b', '--batch-size', default=128, type=int,
                     metavar='N',
                     help='mini-batch size (default: 256), this is the total '
                          'batch size of all GPUs on the current node when '
@@ -96,19 +77,11 @@ parser.add_argument('--multiprocessing-distributed', action='store_true',
                          'fastest way to use PyTorch for either single node or '
                          'multi node data parallel training')
 
-#################################################################
-# print(parser)
-torch.manual_seed(0)
 best_acc1 = 0
-mean_layers, var_layers = [], []
 
-#################################################################
 
 def main():
     args = parser.parse_args()
-    print("------------------------")
-    print(args)
-    print("------------------------")
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -153,65 +126,62 @@ def main_worker(gpu, ngpus_per_node, args):
         if args.dist_url == "env://" and args.rank == -1:
             args.rank = int(os.environ["RANK"])
         if args.multiprocessing_distributed:
+            # For multiprocessing distributed training, rank needs to be the
+            # global rank among all the processes
             args.rank = args.rank * ngpus_per_node + gpu
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                 world_size=args.world_size, rank=args.rank)
-    ### create model
+    # create model
     if args.pretrained:
-        # model = models.__dict__[args.arch](pretrained=True)
-        if args.dataset == "cifar10":
-            print("=> using pre-trained model '{}'".format(args.arch))
-            model = torch.load(args.teacher_dir + 'teacher_acc_95.3')
-        elif args.dataset == "cifar100":
-            print("=> using pre-trained model '{}'".format(args.arch))
-            model = resnet.ResNet34(num_classes=100).cuda()
-            ckpt_teacher = torch.load("cache/pretrained/cifar100_resnet34.pth")
-            model.load_state_dict(ckpt_teacher['state_dict'])
-        elif args.dataset == "Tiny":
-            print("=> using pre-trained model resnet34")
-            model = models.resnet34(pretrained=True)
+        print("=> using pre-trained model '{}'".format(args.arch))
+        model = models.__dict__[args.arch](pretrained=True)
     else:
-        print("=> creating model '{}'".format(args.arch))
-        model = models.__dict__[args.arch]()
-    # model = model.cuda()
+        # print("=> creating model '{}'".format(args.arch))
+        # model = models.__dict__[args.arch]()
+        model = models.resnet34(num_classes=200)
+        model.avgpool = torch.nn.AdaptiveAvgPool2d(1) # https://github.com/pytorch/vision/issues/696
+
+    print(model)
 
     if not torch.cuda.is_available():
-        print("111")
         print('using CPU, this will be slow')
     elif args.distributed:
-        print("222")
+        # For multiprocessing distributed, DistributedDataParallel constructor
+        # should always set the single device scope, otherwise,
+        # DistributedDataParallel will use all available devices.
         if args.gpu is not None:
             torch.cuda.set_device(args.gpu)
             model.cuda(args.gpu)
+            # When using a single GPU per process and per
+            # DistributedDataParallel, we need to divide the batch size
+            # ourselves based on the total number of GPUs we have
             args.batch_size = int(args.batch_size / ngpus_per_node)
             args.workers = int((args.workers + ngpus_per_node - 1) / ngpus_per_node)
             model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         else:
             model.cuda()
+            # DistributedDataParallel will divide and allocate batch_size to all
+            # available GPUs if device_ids are not set
             model = torch.nn.parallel.DistributedDataParallel(model)
     elif args.gpu is not None:
-        print("333")
         torch.cuda.set_device(args.gpu)
         model = model.cuda(args.gpu)
     else:
-        print("444")
         # DataParallel will divide and allocate batch_size to all available GPUs
         if args.arch.startswith('alexnet') or args.arch.startswith('vgg'):
-            print("444-1")
             model.features = torch.nn.DataParallel(model.features)
             model.cuda()
         else:
-            print("444-2")
-            # model = torch.nn.DataParallel(model).cuda()
-            model = model.cuda()
+            model = torch.nn.DataParallel(model).cuda()
 
-    ### define loss function (criterion) and optimizer
+    # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda(args.gpu)
+
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
 
-    ### optionally resume from a checkpoint
+    # optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
             print("=> loading checkpoint '{}'".format(args.resume))
@@ -233,145 +203,132 @@ def main_worker(gpu, ngpus_per_node, args):
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
 
-    # print(model)
-    # print("\n||||||||||||||")
-    # for name, W in model.named_parameters():
-    #     if ('bn' in name) and ("weight" in name):
-    #         print(name, W.shape)
-    # print("||||||||||||||\n")
-
-    # print(model.module.bn1.running_mean.data)
-    # print(model.module.layer1[0].bn1.running_mean.data)
-    # print(model.module.bn1.running_mean.data.shape, 
-    #         model.module.layer1[0].bn1.running_mean.data.shape)
-    # exit(0)
-
     cudnn.benchmark = True
-    
-    ### Data loading
-    if args.dataset == 'cifar10':
-        n = int(args.n_divid)
-        num_classes = int(10/n)
 
-        train_images = None
-        train_labels = None
+    # # Data loading code
+    # traindir = os.path.join(args.data, 'train')
+    # valdir = os.path.join(args.data, 'val')
+    # normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+    #                                  std=[0.229, 0.224, 0.225])
 
-        # val_images = None
-        # val_labels = None
+    # train_dataset = datasets.ImageFolder(
+    #     traindir,
+    #     transforms.Compose([
+    #         transforms.RandomResizedCrop(224),
+    #         transforms.RandomHorizontalFlip(),
+    #         transforms.ToTensor(),
+    #         normalize,
+    #     ]))
 
-        for idx in range(0, n):
-            start_class = idx*num_classes
-            end_class = (idx+1)*num_classes
+    # if args.distributed:
+    #     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+    # else:
+    #     train_sampler = None
 
-            print("-----> start_class: "+str(start_class)+" end_class: "+str(end_class))
+    # train_loader = torch.utils.data.DataLoader(
+    #     train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
+    #     num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
-            train_loader, val_loader = get_split_cifar10(args, args.batch_size, 
-                                                                    start_class, end_class)
-            train_inputs, train_classes = next(iter(train_loader))   
-            # val_inputs, val_classes = next(iter(train_loader))   
+    # val_loader = torch.utils.data.DataLoader(
+    #     datasets.ImageFolder(valdir, transforms.Compose([
+    #         transforms.Resize(256),
+    #         transforms.CenterCrop(224),
+    #         transforms.ToTensor(),
+    #         normalize,
+    #     ])),
+    #     batch_size=args.batch_size, shuffle=False,
+    #     num_workers=args.workers, pin_memory=True)
 
-            if idx == 0:
-                train_images = train_inputs
-                train_labels = train_classes
-                # val_images = val_inputs
-                # val_labels = val_classes
-            else:
-                train_images = torch.vstack((train_images, train_inputs))
-                train_labels = torch.cat((train_labels, train_classes))
-                # val_images = torch.vstack((val_images, val_inputs))
-                # val_labels = torch.cat((val_labels, val_classes))
+    # Define main data directory
+    DATA_DIR = '/data/tiny-imagenet-200' # Original images come in shapes of [3,64,64]
 
-    if args.dataset == 'cifar100':
-        n = int(args.n_divid)
-        num_classes = int(100/n)
+    # Define training and validation data paths
+    TRAIN_DIR = os.path.join(DATA_DIR, 'train') 
+    VALID_DIR = os.path.join(DATA_DIR, 'val')
 
-        train_images = None
-        train_labels = None
+    def generate_dataloader(data, name, transform):
+        if data is None: 
+            return None
+        if transform is None:
+            dataset = datasets.ImageFolder(data, transform=transforms.ToTensor())
+        else:
+            dataset = datasets.ImageFolder(data, transform=transform)
+        # Set options for device
+        kwargs = {"pin_memory": True, "num_workers": 4}
+        # Wrap image dataset (defined above) in dataloader 
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, 
+                            shuffle=(name=="train"), 
+                            **kwargs)
+        return dataloader
 
-        for idx in range(0, n):
-            start_class = idx*num_classes
-            end_class = (idx+1)*num_classes
 
-            print("-----> start_class: "+str(start_class)+" end_class: "+str(end_class))
-            train_loader, val_loader = get_split_cifar100(args, args.batch_size, start_class, end_class)
-            train_inputs, train_classes = next(iter(train_loader))   
+    val_img_dir = os.path.join(VALID_DIR, 'images')
 
-            if idx == 0:
-                train_images = train_inputs
-                train_labels = train_classes
-            else:
-                train_images = torch.vstack((train_images, train_inputs))
-                train_labels = torch.cat((train_labels, train_classes))
+    # fp = open(os.path.join(VALID_DIR, 'val_annotations.txt'), 'r')
+    # data = fp.readlines()
 
-    if args.dataset == 'Tiny':
+    # val_img_dict = {}
+    # for line in data:
+    #     words = line.split('\t')
+    #     val_img_dict[words[0]] = words[1]
+    # fp.close()
 
-        DATA_DIR = "/data/tiny-imagenet-200"
-        
-        n = int(args.n_divid)
-        num_classes = int(200/n)
+    # for img, folder in val_img_dict.items():
+    #     newpath = (os.path.join(val_img_dir, folder))
+    #     if not os.path.exists(newpath):
+    #         os.makedirs(newpath)
+    #     if os.path.exists(os.path.join(val_img_dir, img)):
+    #         os.rename(os.path.join(val_img_dir, img), os.path.join(newpath, img))
 
-        train_images = None
-        train_labels = None
+    preprocess_transform_pretrain = transforms.Compose([
+                    transforms.Resize(256), # Resize images to 256 x 256
+                    transforms.CenterCrop(224), # Center crop image
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),  # Converting cropped images to tensors
+                    transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                                std=[0.229, 0.224, 0.225])
+    ])
 
-        # val_images = None
-        # val_labels = None
+    batch_size = args.batch_size
+    train_loader = generate_dataloader(TRAIN_DIR, "train",
+                                    transform=preprocess_transform_pretrain)
+    val_loader = generate_dataloader(val_img_dir, "val",
+                                    transform=preprocess_transform_pretrain)
 
-        for idx in range(0, n):
-            start_class = idx*num_classes
-            end_class = (idx+1)*num_classes
+    train_sampler = None
 
-            print("-----> start_class: "+str(start_class)+" end_class: "+str(end_class))
-            train_loader, val_loader = get_split_TinyImageNet(args, DATA_DIR, args.batch_size, 
-                                                                    start_class, end_class)
-            train_inputs, train_classes = next(iter(train_loader))   
-            # val_inputs, val_classes = next(iter(train_loader))   
+    if args.evaluate:
+        validate(val_loader, model, criterion, args)
+        return
 
-            if idx == 0:
-                train_images = train_inputs
-                train_labels = train_classes
-                # val_images = val_inputs
-                # val_labels = val_classes
-            else:
-                train_images = torch.vstack((train_images, train_inputs))
-                train_labels = torch.cat((train_labels, train_classes))
-                # val_images = torch.vstack((val_images, val_inputs))
-                # val_labels = torch.cat((val_labels, val_classes))
+    # ---------------------------------------
+    for epoch in range(args.start_epoch, args.epochs):
+        if args.distributed:
+            train_sampler.set_epoch(epoch)
+        adjust_learning_rate(optimizer, epoch, args)
 
-    # ---------------------------------
-    ### cluster
-    num_clusters = args.num_clusters
+        # train for one epoch
+        train(train_loader, model, criterion, optimizer, epoch, args)
 
-    train_images_rsp = train_images.reshape(n*args.batch_size,-1)
-    # val_images_rsp = val_images.reshape(val_images.shape[0],-1)
+        # evaluate on validation set
+        acc1 = validate(val_loader, model, criterion, args)
 
-    # kmeans
-    cluster_ids_train, cluster_centers = kmeans(X=train_images_rsp, num_clusters=num_clusters, distance='euclidean', device=torch.device('cuda:0'))
-    # cluster_ids_val = kmeans_predict(val_images_rsp, cluster_centers, 'euclidean', device=torch.device('cuda:0'))
+        # remember best acc@1 and save checkpoint
+        is_best = acc1 > best_acc1
+        best_acc1 = max(acc1, best_acc1)
 
-    # print(cluster_ids_train, cluster_ids_val)
-    
-    for idx_cluster in range(num_clusters):
+        if not args.multiprocessing_distributed or (args.multiprocessing_distributed
+                and args.rank % ngpus_per_node == 0):
+            save_checkpoint(args, {
+                'epoch': epoch + 1,
+                'arch': args.arch,
+                'state_dict': model.state_dict(),
+                'best_acc1': best_acc1,
+                'optimizer' : optimizer.state_dict(),
+            }, is_best)
 
-        train_images_idx = train_images[torch.where(cluster_ids_train == idx_cluster)]
-        train_label_idx = cluster_ids_train[torch.where(cluster_ids_train == idx_cluster)]
-
-        dataset_cluster = torch.utils.data.TensorDataset(train_images_idx, train_label_idx)
-        train_loader_cluster = torch.utils.data.DataLoader(dataset_cluster)
-
-        print(num_clusters, train_images_idx.shape, train_label_idx.shape)
-        
-        # ---------------------------------
-
-        for epoch in range(args.start_epoch, args.epochs):
-
-            adjust_learning_rate(optimizer, epoch, args)
-
-            ### train for one epoch
-            train(args, train_loader_cluster, model, criterion, optimizer, epoch, idx_cluster, idx_cluster+1)
-
-# -------------------------------------------------------------------------------------------------
-
-def train(args, train_loader, model, criterion, optimizer, epoch, start_class, end_class):
+# ---------------------------------
+def train(train_loader, model, criterion, optimizer, epoch, args):
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
@@ -382,108 +339,53 @@ def train(args, train_loader, model, criterion, optimizer, epoch, start_class, e
         [batch_time, data_time, losses, top1, top5],
         prefix="Epoch: [{}]".format(epoch))
 
+    # switch to train mode
     model.train()
 
     end = time.time()
     for i, (images, target) in enumerate(train_loader):
+        # measure data loading time
         data_time.update(time.time() - end)
 
         if args.gpu is not None:
-            print('555-1')
             images = images.cuda(args.gpu, non_blocking=True)
         if torch.cuda.is_available():
-            print('555-2')
-            images = images.cuda(args.gpu, non_blocking=True)
             target = target.cuda(args.gpu, non_blocking=True)
 
+        # compute output
         output = model(images)
         loss = criterion(output, target)
 
+        # measure accuracy and record loss
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
         losses.update(loss.item(), images.size(0))
         top1.update(acc1[0], images.size(0))
         top5.update(acc5[0], images.size(0))
 
+        # compute gradient and do SGD step
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
+        # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
-        
-        #######################################################
-        ### get stat of one batch --> store stat of BN
-
-        # ### check
-        # temp = torch.load("stats_multi/output/mean_resnet34_start-0_end-1.pth")
-        # for i in temp:
-        #     print(i, temp[i].shape)
-        # exit(0)
-
-        name_layers = []
-        
-        def hook_fn_forward(module, input, output):
-            # first input dim ([64,64,112,112])
-        
-            if args.hook_type == "output":
-                nch = output.shape[1]
-                mean = output.mean([0,2,3]).cpu().detach()
-                var = output.permute(1, 0, 2, 3).contiguous().view([nch, -1]).var(1, unbiased=False).cpu().detach()
-            elif args.hook_type == "input":   
-                nch = input[0].shape[1]
-                mean = input[0].mean([0, 2, 3]).cpu().detach()
-                var = input[0].permute(1, 0, 2, 3).contiguous().view([nch, -1]).var(1, unbiased=False).cpu().detach()    
-            
-            mean_layers.append(mean)
-            var_layers.append(var)
-        
-        for name_stat, module_stat in model.named_modules():
-            # print(name_stat)
-            # print(module_stat)
-
-            # if isinstance(module_stat, nn.BatchNorm2d):
-            if ("bn" in name_stat) or ("downsample.1" in name_stat):
-            #if len(module_stat.size()) == 4:
-            #if isinstance(module_stat,nn.Conv2d): 
-                module_stat.register_forward_hook(hook_fn_forward)
-                name_layers.append(name_stat)
-        # exit(0)
-        #print(name_layers)
-        #print(len(mean_layers))
-        #exit(0)
-
-        ### construct dict to store mean and var
-        mean_layers_dictionary, var_layers_dictionary = dict(zip(name_layers, mean_layers)), dict(zip(name_layers, var_layers))
-        mean_layers_dictionary = collections.OrderedDict(mean_layers_dictionary)
-        var_layers_dictionary = collections.OrderedDict(var_layers_dictionary)
-
-        # for iii in mean_layers_dictionary:
-        #     print(iii, mean_layers_dictionary[iii].shape)
-        # print(mean_layers_dictionary.keys())
-
-        ### save generated statistics
-        save_path = "stats_"+args.dataset+"/stats_multi_"+args.ext+"/"+args.hook_type
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
-        torch.save(mean_layers_dictionary, save_path+"/mean_"+args.arch+"_"+"start-"+str(start_class)+"_end-"+str(end_class)+".pth")
-        torch.save(var_layers_dictionary, save_path+"/var_"+args.arch+"_"+"start-"+str(start_class)+"_end-"+str(end_class)+".pth")
 
         if i % args.print_freq == 0:
             progress.display(i)
-        if i == 1:
-            return
-        
+
 
 def validate(val_loader, model, criterion, args):
-    batch_time = AverageMeter('Time', ':6.3f')
-    losses = AverageMeter('Loss', ':.4e')
-    top1 = AverageMeter('Acc@1', ':6.2f')
-    top5 = AverageMeter('Acc@5', ':6.2f')
+    batch_time = AverageMeter('Time', ':6.3f', Summary.NONE)
+    losses = AverageMeter('Loss', ':.4e', Summary.NONE)
+    top1 = AverageMeter('Acc@1', ':6.2f', Summary.AVERAGE)
+    top5 = AverageMeter('Acc@5', ':6.2f', Summary.AVERAGE)
     progress = ProgressMeter(
         len(val_loader),
         [batch_time, losses, top1, top5],
         prefix='Test: ')
 
+    # switch to evaluate mode
     model.eval()
 
     with torch.no_grad():
@@ -511,24 +413,29 @@ def validate(val_loader, model, criterion, args):
             if i % args.print_freq == 0:
                 progress.display(i)
 
-        ### TODO: this should also be done with the ProgressMeter
-        print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
-              .format(top1=top1, top5=top5))
+        progress.display_summary()
 
     return top1.avg
 
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
+def save_checkpoint(args, state, is_best):
+    filename='checkpoint_'+args.ext+'.pth.tar'
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, 'model_best.pth.tar')
+        shutil.copyfile(filename, 'model_best_'+args.ext+'.pth.tar')
 
+class Summary(Enum):
+    NONE = 0
+    AVERAGE = 1
+    SUM = 2
+    COUNT = 3
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
-    def __init__(self, name, fmt=':f'):
+    def __init__(self, name, fmt=':f', summary_type=Summary.AVERAGE):
         self.name = name
         self.fmt = fmt
+        self.summary_type = summary_type
         self.reset()
 
     def reset(self):
@@ -546,6 +453,21 @@ class AverageMeter(object):
     def __str__(self):
         fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
         return fmtstr.format(**self.__dict__)
+    
+    def summary(self):
+        fmtstr = ''
+        if self.summary_type is Summary.NONE:
+            fmtstr = ''
+        elif self.summary_type is Summary.AVERAGE:
+            fmtstr = '{name} {avg:.3f}'
+        elif self.summary_type is Summary.SUM:
+            fmtstr = '{name} {sum:.3f}'
+        elif self.summary_type is Summary.COUNT:
+            fmtstr = '{name} {count:.3f}'
+        else:
+            raise ValueError('invalid summary type %r' % self.summary_type)
+        
+        return fmtstr.format(**self.__dict__)
 
 
 class ProgressMeter(object):
@@ -558,6 +480,11 @@ class ProgressMeter(object):
         entries = [self.prefix + self.batch_fmtstr.format(batch)]
         entries += [str(meter) for meter in self.meters]
         print('\t'.join(entries))
+        
+    def display_summary(self):
+        entries = [" *"]
+        entries += [meter.summary() for meter in self.meters]
+        print(' '.join(entries))
 
     def _get_batch_fmtstr(self, num_batches):
         num_digits = len(str(num_batches // 1))
@@ -588,8 +515,6 @@ def accuracy(output, target, topk=(1,)):
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
 
-
-#####################################################################
 
 if __name__ == '__main__':
     main()
