@@ -7,7 +7,7 @@ export hook_type=$1
 export n_divid=$2
 export ext=${n_divid}GC_${hook_type}R10
 
-python3 gen_stats_cifar_cluster.py \
+srun -p V100 --gres=gpu:1 -n 1 --cpus-per-task=4 python3 gen_stats_cifar_cluster.py \
                             --dataset cifar100 \
                             --pretrained \
                             --hook_type $hook_type \
@@ -16,7 +16,7 @@ python3 gen_stats_cifar_cluster.py \
                             --num_clusters $n_divid \
                             --ext $ext
 
-python3 DAFLDeepinvert-train_v7_cluster.py \
+srun -p V100 --gres=gpu:1 -n 1 --cpus-per-task=4 python3 DAFLDeepinvert-train_v7_cluster.py \
                             --dataset cifar100 \
                             --fix_G \
                             --train_G \
@@ -29,7 +29,7 @@ python3 DAFLDeepinvert-train_v7_cluster.py \
                             --hook_type $hook_type \
                             --ext $ext
 
-python3 DAFLDeepinvert-train_v7_cluster.py \
+srun -p V100 --gres=gpu:1 -n 1 --cpus-per-task=4 python3 DAFLDeepinvert-train_v7_cluster.py \
                             --dataset cifar100 \
                             --fix_G \
                             --train_S \

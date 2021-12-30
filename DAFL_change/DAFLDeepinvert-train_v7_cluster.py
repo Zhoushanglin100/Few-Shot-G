@@ -87,7 +87,7 @@ if has_wandb:
         #                                                             args.n_epochs, args.n_epochs_G,
         #                                                             args.lr_G, args.lr_S)
         id = "{}_trainS-{}".format(args.dataset, args.ext)
-    wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args, resume="allow", id=id)
+    wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
     # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)
     wandb.config.update(args)
 
