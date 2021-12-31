@@ -531,8 +531,8 @@ def main():
         lim_0, lim_1 = 2, 2
 
         n = int(args.n_divid)
-        total = int(args.total_class)
-        num_classes = int(total/n)
+        # total = int(args.total_class)
+        # num_classes = int(total/n)
 
         ### iteratively train generators
         for idx in range(0, n):
@@ -580,7 +580,6 @@ def main():
                 stat_path = "stats_"+args.dataset+"/stats_multi_"+args.ext+"/"+args.hook_type
                 mean_layers_dictionary = torch.load(stat_path+"/mean_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
                 var_layers_dictionary = torch.load(stat_path+"/var_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
-
 
 
             # print("\n||||||||||||||")

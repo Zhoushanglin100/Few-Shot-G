@@ -17,6 +17,7 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
+import resnet as resnet
 
 import collections
 from script import *
@@ -48,7 +49,6 @@ parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet34',
 parser.add_argument('--hook_type', type=str, default='output', choices=['input', 'output'],
                     help = "hook statistics from input data or output data")
 parser.add_argument('--ext', type=str, default='')
-
 
 parser.add_argument('--teacher_dir', type=str, default='cache/models/')
 
@@ -158,9 +158,18 @@ def main_worker(gpu, ngpus_per_node, args):
                                 world_size=args.world_size, rank=args.rank)
     ### create model
     if args.pretrained:
-        print("=> using pre-trained model '{}'".format(args.arch))
         # model = models.__dict__[args.arch](pretrained=True)
-        model = torch.load(args.teacher_dir + 'teacher_acc_95.3')
+        if args.dataset == "cifar10":
+            print("=> using pre-trained model '{}'".format(args.arch))
+            model = torch.load(args.teacher_dir + 'teacher_acc_95.3')
+        elif args.dataset == "cifar100":
+            print("=> using pre-trained model '{}'".format(args.arch))
+            model = resnet.ResNet34(num_classes=100).cuda()
+            ckpt_teacher = torch.load("cache/pretrained/cifar100_resnet34.pth")
+            model.load_state_dict(ckpt_teacher['state_dict'])
+        elif args.dataset == "Tiny":
+            print("=> using pre-trained model resnet34")
+            model = models.resnet34(pretrained=True)
     else:
         print("=> creating model '{}'".format(args.arch))
         model = models.__dict__[args.arch]()
@@ -243,22 +252,21 @@ def main_worker(gpu, ngpus_per_node, args):
     if args.dataset == 'cifar10':
         n = int(args.n_divid)
         num_classes = int(10/n)
+    elif args.dataset == 'cifar100':
+        n = int(args.n_divid)
+        num_classes = int(100/n)
 
-        for idx in range(0, n):
-            start_class = idx*num_classes
-            end_class = (idx+1)*num_classes
-
-            print("-----> start_class: "+str(start_class)+" end_class: "+str(end_class))
-
-            train_loader, val_loader = get_split_cifar10(args, args.batch_size, 
-                                                                    start_class, end_class)
-
-            for epoch in range(args.start_epoch, args.epochs):
-
-                adjust_learning_rate(optimizer, epoch, args)
-
-                ### train for one epoch
-                train(args, train_loader, model, criterion, optimizer, epoch, start_class, end_class)
+    for idx in range(0, n):
+        start_class = idx*num_classes
+        end_class = (idx+1)*num_classes
+        
+        print("-----> start_class: "+str(start_class)+" end_class: "+str(end_class))
+        train_loader, val_loader = get_split_cifar10(args, args.batch_size, 
+                                                                start_class, end_class)
+        for epoch in range(args.start_epoch, args.epochs):
+            adjust_learning_rate(optimizer, epoch, args)
+            ### train for one epoch
+            train(args, train_loader, model, criterion, optimizer, epoch, start_class, end_class)
 
 # -------------------------------------------------------------------------------------------------
 
@@ -353,7 +361,7 @@ def train(args, train_loader, model, criterion, optimizer, epoch, start_class, e
         # print(mean_layers_dictionary.keys())
 
         ### save generated statistics
-        save_path = "stats/stats_multi_"+args.ext+"/"+args.hook_type
+        save_path = "stats_"+args.dataset+"/stats_multi_"+args.ext+"/"+args.hook_type
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         torch.save(mean_layers_dictionary, save_path+"/mean_"+args.arch+"_"+"start-"+str(start_class)+"_end-"+str(end_class)+".pth")
