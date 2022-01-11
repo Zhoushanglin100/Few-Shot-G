@@ -261,8 +261,12 @@ def main_worker(gpu, ngpus_per_node, args):
         end_class = (idx+1)*num_classes
         
         print("-----> start_class: "+str(start_class)+" end_class: "+str(end_class))
-        train_loader, val_loader = get_split_cifar10(args, args.batch_size, 
-                                                                start_class, end_class)
+        if args.dataset == 'cifar10':
+            train_loader, val_loader = get_split_cifar10(args, args.batch_size, 
+                                                                    start_class, end_class)
+        if args.dataset == 'cifar100':
+            train_loader, val_loader = get_split_cifar100(args, args.batch_size, 
+                                                                    start_class, end_class)                                                                    
         for epoch in range(args.start_epoch, args.epochs):
             adjust_learning_rate(optimizer, epoch, args)
             ### train for one epoch

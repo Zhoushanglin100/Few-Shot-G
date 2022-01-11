@@ -313,9 +313,6 @@ def main_worker(gpu, ngpus_per_node, args):
         train_images = None
         train_labels = None
 
-        # val_images = None
-        # val_labels = None
-
         for idx in range(0, n):
             start_class = idx*num_classes
             end_class = (idx+1)*num_classes
@@ -324,18 +321,13 @@ def main_worker(gpu, ngpus_per_node, args):
             train_loader, val_loader = get_split_TinyImageNet(args, DATA_DIR, args.batch_size, 
                                                                     start_class, end_class)
             train_inputs, train_classes = next(iter(train_loader))   
-            # val_inputs, val_classes = next(iter(train_loader))   
 
             if idx == 0:
                 train_images = train_inputs
                 train_labels = train_classes
-                # val_images = val_inputs
-                # val_labels = val_classes
             else:
                 train_images = torch.vstack((train_images, train_inputs))
                 train_labels = torch.cat((train_labels, train_classes))
-                # val_images = torch.vstack((val_images, val_inputs))
-                # val_labels = torch.cat((val_labels, val_classes))
 
     # ---------------------------------
     ### cluster

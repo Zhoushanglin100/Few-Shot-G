@@ -260,7 +260,7 @@ if args.dataset == 'cifar10':
 if args.dataset == 'cifar100':
     # teacher = resnet_1.resnet34(num_classes=100).cuda()
     teacher = resnet.ResNet34(num_classes=100).cuda()
-    ckpt_teacher = torch.load("cache/pretrained/cifar100_resnet34.pth")
+    ckpt_teacher = torch.load("cache/pretrained/cifar100_resnet34.pth")   # 74.41%
     teacher.load_state_dict(ckpt_teacher['state_dict'])
 
 teacher.eval()
@@ -268,7 +268,7 @@ teacher = nn.DataParallel(teacher)
 generator = nn.DataParallel(generator)
 # deepinversion
 
-# test_teacher(teacher)   # 74.41%
+# test_teacher(teacher)
 
 # -------------------------------------
 save_path = 'cache/ckpts_'+args.dataset

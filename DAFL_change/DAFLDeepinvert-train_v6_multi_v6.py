@@ -52,11 +52,14 @@ parser.add_argument('--stat_type', type=str, default='extract', choices=['runnin
                     help = "statistics from self extracted from a batch or saved stats from teacher")
 
 parser.add_argument('--batch_size', type=int, default=256, help='size of the batches')
-parser.add_argument('--lr_G', type=float, default=0.001, help='learning rate of generator')
+parser.add_argument('--lr_G', type=float, default=0.001, help='learning rate of generator,')
 parser.add_argument('--lr_S', type=float, default=0.06, help='learning rate of student')
 parser.add_argument('--decay', type=float, default=5, help='decay of learning rate')
 
+parser.add_argument('--lambda_s', type=int, default=10, 
+                    help='coefficient for moment matching loss. [cifar10: 10; cifar100: 1; imagenet: 3]')
 parser.add_argument('--latent_dim', type=int, default=1000, help='dimensionality of the latent space')
+
 parser.add_argument('--img_size', type=int, default=32, help='size of each image dimension')
 parser.add_argument('--channels', type=int, default=3, help='number of image channels')
 
@@ -313,9 +316,8 @@ def train_G(args, idx, net, generator, teacher, epoch,
         ### only train generator before n_epochs_G epoch
         loss = loss_one_hot
         loss += (6e-3 * loss_var)
-        loss += (1.5e-5 * torch.norm(gen_imgs, 2))  # l2 loss
-        loss += 10*loss_distr                       # best for noise before BN
-        # loss += 100*loss_distr                       # best for noise before BN
+        loss += (1.5e-5 * torch.norm(gen_imgs, 2))       # l2 loss
+        loss += args.lambda_s*loss_distr                 # best for noise before BN
 
         if i % 10 == 0:
             print('Train G_%d, Epoch %d, Batch: %d, Loss: %f' % (idx, epoch, i, loss.data.item()))
@@ -451,6 +453,8 @@ def test_S(args, net, len_G, num_classes, criterion):
                 _, test_loader = get_split_cifar10(args, args.batch_size, start_class, end_class*(i+1))
             elif args.dataset == 'cifar100':
                 _, test_loader = get_split_cifar100(args, args.batch_size, start_class, end_class*(i+1))
+            elif args.dataset == 'TinyImageNet':
+                _, test_loader = get_split_TinyImageNet(args, args.batch_size, start_class, end_class*(i+1))
 
             for images, labels in test_loader:
                 images, labels = Variable(images).cuda(), Variable(labels).cuda()
@@ -571,7 +575,7 @@ def main():
                 optimizer_G = torch.optim.Adam(generator.parameters(), lr=args.lr_G)
                 ### student
                 net = resnet.ResNet18(num_classes=100).cuda()
-                optimizer_S = torch.optim.SGD(net.parameters(), lr=args.lr_S, momentum=0.9, weight_decay=5e-4)
+                optimizer_S = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
                 
                 ### Create hooks for feature statistics catching
                 stat_path = "stats_"+args.dataset+"/stats_multi_"+args.ext+"/"+args.hook_type
@@ -681,6 +685,14 @@ def main():
         if args.dataset == 'cifar100':
             print("!!!! CIFAR-100")
             _, data_test_loader = get_split_cifar100(args, args.batch_size, 0, 100)
+
+            net = resnet.ResNet18(num_classes=100).cuda()
+            criterion = torch.nn.CrossEntropyLoss().cuda()
+            optimizer_S = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
+
+        if args.dataset == 'TinyImageNet':
+            print("!!!! Tiny ImageNet")
+            _, data_test_loader = get_split_cifar100(args, args.batch_size, 0, 200)
 
             net = resnet.ResNet18(num_classes=100).cuda()
             criterion = torch.nn.CrossEntropyLoss().cuda()
