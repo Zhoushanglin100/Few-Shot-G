@@ -2,9 +2,12 @@ for hook_type in output input
 do
     for n_divid in 1 2 5 8 10 20 40
     do
-        for latent_dim in 1000 2000 3000
+        for lambda_s in 1 3 10 50 100
         do
-            bash run_cifar100.sh $hook_type $n_divid 64 $lambda_s $latent_dim &
+            for latent_dim in 1000 2000 3000
+            do
+                bash run_cifar100.sh $hook_type $n_divid 64 $lambda_s $latent_dim &
+            done
         done
     done
 done
