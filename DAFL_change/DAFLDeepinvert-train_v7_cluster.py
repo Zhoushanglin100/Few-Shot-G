@@ -316,7 +316,7 @@ def train_G(args, idx, net, generator, teacher, epoch,
         loss = loss_one_hot
         loss += (6e-3 * loss_var)
         loss += (1.5e-5 * torch.norm(gen_imgs, 2))  # l2 loss
-        loss += args.lambda_s*loss_distr                 # best for noise before BN
+        loss += int(args.lambda_s)*loss_distr                 # best for noise before BN
 
         if i % 10 == 0:
             print('Train G_%d, Epoch %d, Batch: %d, Loss: %f' % (idx, epoch, i, loss.data.item()))
