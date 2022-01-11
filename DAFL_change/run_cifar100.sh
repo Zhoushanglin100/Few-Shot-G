@@ -12,7 +12,7 @@ export ext=${n_divid}GC_${hook_type}R10_ls${lambda_s}_ld${latent_dim}
 
 if n_divid==1
 then
-    srun -p TitanXx8_slong,1080Ti_slong --gres=gpu:1 -n 1 --cpus-per-task=4 python3 gen_stats_cifar_multi.py \
+    srun -p TitanXx8_slong,1080Ti_slong --gres=gpu:1 -n 1 --cpus-per-task=4 --exclude=asimov-157 python3 gen_stats_cifar_multi.py \
                         --dataset cifar100 \
                         --pretrained \
                         --hook_type $hook_type \
@@ -20,7 +20,7 @@ then
                         --n_divid 1 \
                         --ext $ext
                         
-    srun -p TitanXx8_slong,1080Ti_slong --gres=gpu:1 -n 1 --cpus-per-task=4 python3 DAFLDeepinvert-train_v6_multi_v6.py \
+    srun -p TitanXx8_slong,1080Ti_slong --gres=gpu:1 -n 1 --cpus-per-task=4 --exclude=asimov-157 python3 DAFLDeepinvert-train_v6_multi_v6.py \
                                     --dataset cifar100 \
                                     --total_class 100 \
                                     --fix_G \
@@ -36,7 +36,7 @@ then
                                     --latent_dim $latent_dim \
                                     --ext $ext
 
-    srun -p TitanXx8_slong,1080Ti_slong --gres=gpu:4 -n 1 --cpus-per-task=16 python3 DAFLDeepinvert-train_v6_multi_v6.py \
+    srun -p TitanXx8_slong,1080Ti_slong --gres=gpu:4 -n 1 --cpus-per-task=16 --exclude=asimov-157 python3 DAFLDeepinvert-train_v6_multi_v6.py \
                                         --dataset cifar100 \
                                         --total_class 100 \
                                         --fix_G \
@@ -51,7 +51,7 @@ then
                                         --resume \
                                         --ext $ext
 else
-    srun -p TitanXx8_slong,1080Ti_slong --gres=gpu:1 -n 1 --cpus-per-task=4 python3 gen_stats_cifar_cluster.py \
+    srun -p TitanXx8_slong,1080Ti_slong --gres=gpu:1 -n 1 --cpus-per-task=4 --exclude=asimov-157 python3 gen_stats_cifar_cluster.py \
                                 --dataset cifar100 \
                                 --pretrained \
                                 --hook_type $hook_type \
@@ -60,7 +60,7 @@ else
                                 --num_clusters $n_divid \
                                 --ext $ext
 
-    srun -p TitanXx8_slong,1080Ti_slong --gres=gpu:1 -n 1 --cpus-per-task=4 python3 DAFLDeepinvert-train_v7_cluster.py \
+    srun -p TitanXx8_slong,1080Ti_slong --gres=gpu:1 -n 1 --cpus-per-task=4 --exclude=asimov-157 python3 DAFLDeepinvert-train_v7_cluster.py \
                                 --dataset cifar100 \
                                 --total_class 100
                                 --fix_G \
@@ -76,7 +76,7 @@ else
                                 --latent_dim $latent_dim \
                                 --ext $ext
 
-    srun -p TitanXx8_slong,1080Ti_slong --gres=gpu:4 -n 1 --cpus-per-task=16 python3 DAFLDeepinvert-train_v7_cluster.py \
+    srun -p TitanXx8_slong,1080Ti_slong --gres=gpu:4 -n 1 --cpus-per-task=16 --exclude=asimov-157 python3 DAFLDeepinvert-train_v7_cluster.py \
                                 --dataset cifar100 \
                                 --fix_G \
                                 --train_S \
