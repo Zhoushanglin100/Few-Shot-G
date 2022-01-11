@@ -11,13 +11,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 
-# try:
-#     import wandb
-#     has_wandb = True
-# except ImportError: 
-#     has_wandb = False
+try:
+    import wandb
+    has_wandb = True
+except ImportError: 
+    has_wandb = False
 
-has_wandb = False
+# has_wandb = False
 
 ###########################################
 
