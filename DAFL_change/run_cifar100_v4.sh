@@ -8,13 +8,13 @@ export ext=${n_divid}GC_${hook_type}R10_ls${lambda_s}_ld${latent_dim}
 export partion=$6
 
 if sample_batch==8; then 
-    n_divid==7
-elif sample_batch=16; then 
-    n_divid==10
-elif sample_batch=32; then 
-    n_divid==13
-elif sample_batch=64; then 
-    n_divid==8
+    n_divid=7
+elif sample_batch==16; then 
+    n_divid=10
+elif sample_batch==32; then 
+    n_divid=13
+elif sample_batch==64; then 
+    n_divid=8
 fi
 
 srun -p $partion --gres=gpu:1 -n 1 --cpus-per-task=4 --exclude=asimov-157 python3 gen_stats_cluster_finch_feature.py \
