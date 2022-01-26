@@ -7,13 +7,13 @@ export ext=${n_divid}GC_${hook_type}R10_ls${lambda_s}_ld${latent_dim}
 
 export partion=$6
 
-if sample_batch==8; then 
+if [ "$sample_batch" = "8" ]; then 
     export n_divid=7
-elif sample_batch==16; then 
+elif [ "$sample_batch" = "16" ]; then 
     export n_divid=10
-elif sample_batch==32; then 
+elif [ "$sample_batch" = "32" ]; then 
     export n_divid=13
-elif sample_batch==64; then 
+elif [ "$sample_batch" = "64" ]; then 
     export n_divid=8
 fi
 
