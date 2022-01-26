@@ -3,8 +3,6 @@ export sample_batch=$2
 export train_G_bz=$3
 export lambda_s=$4
 export latent_dim=$5
-export ext=${n_divid}GC_${hook_type}R10_ls${lambda_s}_ld${latent_dim}
-
 export partion=$6
 
 if [ "$sample_batch" = "8" ]; then 
@@ -16,6 +14,8 @@ elif [ "$sample_batch" = "32" ]; then
 elif [ "$sample_batch" = "64" ]; then 
     export n_divid=8
 fi
+
+export ext=${n_divid}GC_${hook_type}_R${lambda_s}_ld${latent_dim}
 
 CUDA_VISIBLE_DEVICES=1 python3 gen_stats_cluster_finch_feature.py \
                                     --dataset cifar100 \
