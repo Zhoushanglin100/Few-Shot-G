@@ -621,23 +621,17 @@ def main():
                 if has_wandb:
                     wandb.log({"epoch": e})
 
+                save_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
+
+                if os.path.exists(save_name):
+                    # print(name, "Generate exit!!")
+                    continue
+
                 train_G(args, idx, net, generator, teacher, e, 
                             optimizer_S, optimizer_G, criterion, 
-                            lim_0, lim_1, # mean_sample, var_sample,
+                            lim_0, lim_1,
                             loss_r_feature_layers)
-        
-                # #||||||||||||||||||||||||
-                # # print(aa)
-                # mean_layers_check = dict(zip(name_layer, aa.mean_layers))
-                # mean_layers_check = collections.OrderedDict(mean_layers_check)
-                # for i in mean_layers_check:
-                #     print(i, mean_layers_check[i].shape)
-                # #||||||||||||||||||||||||
-
-
-                # test(args, net, data_test_loader, criterion)
             
-                save_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
                 torch.save({'epoch': e,
                             'G_state_dict': generator.state_dict(),
                             'G_optimizer_state_dict':optimizer_G.state_dict()}, 
