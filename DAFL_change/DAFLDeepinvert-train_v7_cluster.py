@@ -149,7 +149,7 @@ class DeepInversionFeatureHook():
             # print("=====")
 
             criterion = nn.CosineEmbeddingLoss()
-            r_feature = criterion(batch_var.view(1,-1),var.view(1,-1),torch.ones(1).cuda())+criterion(batch_mean.view(1,-1),mean.view(1,-1),torch.ones(1).cuda())
+            r_feature = criterion(batch_var.view(1,-1), var.view(1,-1), torch.ones(1).cuda()) + criterion(batch_mean.view(1,-1), mean.view(1,-1), torch.ones(1).cuda())
             
             # r_feature = torch.norm(module.running_var.data.type(var.type()) - var, 2) + torch.norm(
             #     module.running_mean.data.type(mean.type()) - mean, 2)
@@ -553,7 +553,7 @@ def main():
 
             # # ---------------
             # ### way to resume
-            # save_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
+            save_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
 
             # if os.path.exists(save_name):
             #     print("Generate exit!!", name)
