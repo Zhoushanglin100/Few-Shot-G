@@ -82,6 +82,7 @@ if has_wandb:
         #                                                            args.n_epochs, args.n_epochs_G,
         #                                                            args.lr_G, args.lr_S)
         id = "{}_trainG-{}".format(args.dataset, args.ext)
+        id_2 = "{}_trainG-2-{}".format(args.dataset, args.ext)
     if args.train_S:
         # id = "trainS-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
         #                                                             args.batch_size, 
@@ -91,7 +92,10 @@ if has_wandb:
         #                                                             args.lr_G, args.lr_S)
         id = "{}_trainS-{}".format(args.dataset, args.ext)
     # if "asimov" in os.environ["$HOSTNAME"]:
-    wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
+    if args.train_G:
+        wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id_2)
+    else:
+        wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
     # else:
         # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)
     wandb.config.update(args)
@@ -547,6 +551,15 @@ def main():
             start_class = idx
             end_class = idx+1
 
+            # # ---------------
+            # ### way to resume
+            # save_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
+
+            # if os.path.exists(save_name):
+            #     print("Generate exit!!", name)
+            #     continue
+            # # ----------------
+
             print("\n !!!!! start_class: "+str(start_class)+" end_class: "+str(end_class))
             # ------------------------------------------------
 
@@ -621,11 +634,11 @@ def main():
                 if has_wandb:
                     wandb.log({"epoch": e})
 
-                save_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
+                # save_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
 
-                if os.path.exists(save_name):
-                    # print(name, "Generate exit!!")
-                    continue
+                # if os.path.exists(save_name):
+                #     # print(name, "Generate exit!!")
+                #     continue
 
                 train_G(args, idx, net, generator, teacher, e, 
                             optimizer_S, optimizer_G, criterion, 
