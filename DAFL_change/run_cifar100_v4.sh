@@ -41,6 +41,7 @@ if [ "$flag_s1" = "1" ]; then
                                         --hook-type $hook_type \
                                         --batch-size $sample_batch \
                                         --ext $ext
+fi
 if [ "$flag_s2" = "1" ]; then 
     srun -p $partion --gres=gpu:1 -n 1 --cpus-per-task=4 --exclude=asimov-157 python3 DAFLDeepinvert-train_v7_cluster.py \
                                         --dataset cifar100 \
@@ -56,6 +57,7 @@ if [ "$flag_s2" = "1" ]; then
                                         --lambda_s $lambda_s \
                                         --latent_dim $latent_dim \
                                         --ext $ext
+fi
 if [ "$flag_s3" = "1" ]; then 
     srun -p $partion --gres=gpu:4 -n 1 --cpus-per-task=16 --exclude=asimov-157 python3 DAFLDeepinvert-train_v7_cluster.py \
                                         --dataset cifar100 \
