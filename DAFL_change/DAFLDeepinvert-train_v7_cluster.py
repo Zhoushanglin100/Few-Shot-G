@@ -551,21 +551,21 @@ def main():
             start_class = idx
             end_class = idx+1
 
-            # # ---------------
-            # ### way to resume
-            save_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
-
-            # if os.path.exists(save_name):
-            #     print("Generate exit!!", name)
-            #     continue
-            # # ----------------
-
             print("\n !!!!! start_class: "+str(start_class)+" end_class: "+str(end_class))
             # ------------------------------------------------
 
             generator = Generator().cuda()
             generator = nn.DataParallel(generator)
 
+            # # ---------------
+            # ### way to resume
+            save_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
+
+            if os.path.exists(save_name):
+                ckeckpoints = torch.load(save_name)
+                if ckeckpoints["e"] == 50:
+                    print("Generate exits!!", name)
+                    continue
             # ------------------------------------------------
                 
             if args.dataset == 'cifar10':
@@ -649,6 +649,8 @@ def main():
                             'G_state_dict': generator.state_dict(),
                             'G_optimizer_state_dict':optimizer_G.state_dict()}, 
                             save_path+"/"+save_name)
+
+            del generator
 
     # ------------------------------------------------
     ### train student
