@@ -563,7 +563,7 @@ def main():
 
             if os.path.exists(save_name):
                 ckeckpoints = torch.load(save_name)
-                if ckeckpoints["e"] == 50:
+                if ckeckpoints["epoch"] == 50:
                     print("Generate exits!!", name)
                     continue
             # ------------------------------------------------
@@ -633,12 +633,6 @@ def main():
             for e in range(start_epoch, args.n_epochs_G+1):
                 if has_wandb:
                     wandb.log({"epoch": e})
-
-                # save_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
-
-                # if os.path.exists(save_name):
-                #     # print(name, "Generate exit!!")
-                #     continue
 
                 train_G(args, idx, net, generator, teacher, e, 
                             optimizer_S, optimizer_G, criterion, 
