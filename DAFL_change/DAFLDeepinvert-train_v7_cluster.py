@@ -142,11 +142,6 @@ class DeepInversionFeatureHook():
         elif self.stat_type == "extract":
             batch_mean = self.mean_dict[self.name].cuda()
             batch_var = self.var_dict[self.name].cuda()
-            
-            # print("!!!!!!!!!", self.name)
-            # print("output", mean.shape, var.shape)
-            # print("batch", batch_mean.shape, batch_var.shape)
-            # print("=====")
 
             criterion = nn.CosineEmbeddingLoss()
             r_feature = criterion(batch_var.view(1,-1), var.view(1,-1), torch.ones(1).cuda()) + criterion(batch_mean.view(1,-1), mean.view(1,-1), torch.ones(1).cuda())
@@ -228,7 +223,7 @@ def adjust_learning_rate(args, optimizer, epoch):
         lr_sq = ((epoch-args.n_epochs_G) // args.decay)+1
         lr = (0.977 ** lr_sq) * lr
     
-    print("!!!!", lr)
+    # print("!!!!", lr)
 
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
@@ -266,7 +261,7 @@ def train_G(args, idx, net, generator, teacher, epoch,
             lim_0, lim_1, # mean, var,
             loss_r_feature_layers): 
 
-    print("\n>>>>> Train Generators <<<<<\n")
+    # print("\n>>>>> Train Generators <<<<<\n")
 
     if args.dataset != 'MNIST':
         adjust_learning_rate_G(args, optimizer_G, epoch)
@@ -324,8 +319,8 @@ def train_G(args, idx, net, generator, teacher, epoch,
         loss += (1.5e-5 * torch.norm(gen_imgs, 2))  # l2 loss
         loss += int(args.lambda_s)*loss_distr                 # best for noise before BN
 
-        if i % 10 == 0:
-            print('Train G_%d, Epoch %d, Batch: %d, Loss: %f' % (idx, epoch, i, loss.data.item()))
+        # if i % 10 == 0:
+        #     print('Train G_%d, Epoch %d, Batch: %d, Loss: %f' % (idx, epoch, i, loss.data.item()))
 
         if has_wandb:
             wandb.log({"loss_G/OneHot_Loss_"+str(idx): loss_one_hot.item()})
@@ -393,8 +388,8 @@ def train_S(args, net, G_list, teacher, epoch, optimizer_S):
         if has_wandb:
             wandb.log({"total_loss_S": loss.item()})
 
-        if i % 10 == 0:
-            print('Student Train - Epoch %d, Batch: %d, Loss: %f' % (epoch, i, loss.data.item()))
+        # if i % 10 == 0:
+        #     print('Student Train - Epoch %d, Batch: %d, Loss: %f' % (epoch, i, loss.data.item()))
 
         loss.backward()
         optimizer_S.step()
@@ -427,7 +422,7 @@ def test(args, net, data_test_loader, criterion):
     # if acc_best < acc:
     #     acc_best = acc
         
-    print('\n|||| Test Avg. Loss: %f, Accuracy: %f' % (avg_loss.data.item(), acc))
+    # print('\n|||| Test Avg. Loss: %f, Accuracy: %f' % (avg_loss.data.item(), acc))
     
     if has_wandb:
         wandb.log({"test_loss": avg_loss.data.item()})
@@ -452,7 +447,7 @@ def test_S(args, net, len_G, num_classes, criterion):
 
             start_class = i*num_classes
             end_class = (i+1)*num_classes
-            print("test_S start_class: "+str(start_class)+" end_class: "+str(end_class))
+            # print("test_S start_class: "+str(start_class)+" end_class: "+str(end_class))
 
             if args.dataset == 'cifar10':
                 _, test_loader = get_split_cifar10(args, args.batch_size, start_class, end_class*(i+1))
@@ -492,8 +487,8 @@ def test_S(args, net, len_G, num_classes, criterion):
     if has_wandb:
         wandb.log({"S_test_acc_total": acc_total})
 
-    print('>>>>> Total:')
-    print('Acc: %.3f%% (%d/%d)' % (100* sum(correct) / sum(total), sum(correct), sum(total)))
+    # print('>>>>> Total:')
+    # print('Acc: %.3f%% (%d/%d)' % (100* sum(correct) / sum(total), sum(correct), sum(total)))
 
 #############################################################
 
@@ -551,7 +546,7 @@ def main():
             start_class = idx
             end_class = idx+1
 
-            print("\n !!!!! start_class: "+str(start_class)+" end_class: "+str(end_class))
+            # print("\n !!!!! start_class: "+str(start_class)+" end_class: "+str(end_class))
             # ------------------------------------------------
 
             generator = Generator().cuda()
@@ -736,7 +731,7 @@ def main():
             # test_S(args, net, len(G_list), num_classes, criterion)
 
             #### save student model
-            print("-------> Model saved!!")
+            # print("-------> Model saved!!")
             save_name = "{}_trainS_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.dataset, 
                                                                                 args.fix_G, args.latent_dim,
                                                                                 args.n_epochs, args.n_epochs_G,
