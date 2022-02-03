@@ -349,7 +349,7 @@ def train_S(args, net, G_list, teacher, epoch, optimizer_S):
 
         optimizer_S.zero_grad()
 
-        gen_imgs = Variable(torch.randn(args.batch_size*10, args.latent_dim)).cuda()
+        # gen_imgs = Variable(torch.randn(args.batch_size*10, args.latent_dim)).cuda()
 
         for gidx, generator in enumerate(G_list):
 
@@ -556,7 +556,7 @@ def main():
             # ### way to resume
             save_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
 
-            if os.path.exists(save_name):
+            if os.path.exists(save_path+"/"+save_name):
                 ckeckpoints = torch.load(save_name)
                 if ckeckpoints["epoch"] == 50:
                     print("Generate exits!!", name)
