@@ -11,13 +11,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 
-# try:
-#     import wandb
-#     has_wandb = True
-# except ImportError: 
-#     has_wandb = False
+try:
+    import wandb
+    has_wandb = True
+except ImportError: 
+    has_wandb = False
 
-has_wandb = False
+# has_wandb = False
 
 ###########################################
 
@@ -319,8 +319,8 @@ def train_G(args, idx, net, generator, teacher, epoch,
         loss += (1.5e-5 * torch.norm(gen_imgs, 2))  # l2 loss
         loss += int(args.lambda_s)*loss_distr                 # best for noise before BN
 
-        if i % 10 == 0:
-            print('Train G_%d, Epoch %d, Batch: %d, Loss: %f' % (idx, epoch, i, loss.data.item()))
+        # if i % 10 == 0:
+        #     print('Train G_%d, Epoch %d, Batch: %d, Loss: %f' % (idx, epoch, i, loss.data.item()))
 
         if has_wandb:
             wandb.log({"loss_G/OneHot_Loss_"+str(idx): loss_one_hot.item()})
@@ -338,7 +338,7 @@ def train_G(args, idx, net, generator, teacher, epoch,
 # --------------------
 
 def train_S(args, net, G_list, teacher, epoch, optimizer_S):
-    print(">>>>> Train Student <<<<<")
+    # print(">>>>> Train Student <<<<<")
 
     net.train()
 
@@ -420,7 +420,7 @@ def test(args, net, data_test_loader, criterion):
     # if acc_best < acc:
     #     acc_best = acc
         
-    print('\n|||| Test Avg. Loss: %f, Accuracy: %f' % (avg_loss.data.item(), acc))
+    # print('\n|||| Test Avg. Loss: %f, Accuracy: %f' % (avg_loss.data.item(), acc))
     
     if has_wandb:
         wandb.log({"test_loss": avg_loss.data.item()})
@@ -551,7 +551,7 @@ def main():
             start_class = idx
             end_class = idx+1
 
-            print("\n !!!!! start_class: "+str(start_class)+" end_class: "+str(end_class))
+            # print("\n !!!!! start_class: "+str(start_class)+" end_class: "+str(end_class))
 
             # ---------------
             # ### way to resume generator
