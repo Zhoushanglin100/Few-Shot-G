@@ -11,20 +11,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 
-try:
-    import wandb
-    has_wandb = True
-except ImportError: 
-    has_wandb = False
+# try:
+#     import wandb
+#     has_wandb = True
+# except ImportError: 
+#     has_wandb = False
 
-# has_wandb = False
+has_wandb = False
 
 ###########################################
 
 parser = argparse.ArgumentParser(description='train-teacher-network')
 
 # Basic model parameters.
-parser.add_argument('--dataset', type=str, default='cifar10', choices=['MNIST','cifar10','cifar100'])
+parser.add_argument('--dataset', type=str, default='cifar10', choices=['MNIST','cifar10','cifar100', 'tiny'])
 parser.add_argument('--data', type=str, default='cache/data/')
 parser.add_argument('--output_dir', type=str, default='cache/models/')
 parser.add_argument('--teacher_dir', type=str, default='cache/models/')
@@ -261,7 +261,7 @@ def train_G(args, idx, net, generator, teacher, epoch,
             lim_0, lim_1, # mean, var,
             loss_r_feature_layers): 
 
-    # print("\n>>>>> Train Generators <<<<<\n")
+    print("\n>>>>> Train Generators <<<<<\n")
 
     if args.dataset != 'MNIST':
         adjust_learning_rate_G(args, optimizer_G, epoch)
@@ -319,8 +319,8 @@ def train_G(args, idx, net, generator, teacher, epoch,
         loss += (1.5e-5 * torch.norm(gen_imgs, 2))  # l2 loss
         loss += int(args.lambda_s)*loss_distr                 # best for noise before BN
 
-        # if i % 10 == 0:
-        #     print('Train G_%d, Epoch %d, Batch: %d, Loss: %f' % (idx, epoch, i, loss.data.item()))
+        if i % 10 == 0:
+            print('Train G_%d, Epoch %d, Batch: %d, Loss: %f' % (idx, epoch, i, loss.data.item()))
 
         if has_wandb:
             wandb.log({"loss_G/OneHot_Loss_"+str(idx): loss_one_hot.item()})
@@ -409,10 +409,8 @@ def test(args, net, data_test_loader, criterion):
         for i, (images, labels) in enumerate(data_test_loader):
             images, labels = Variable(images).cuda(), Variable(labels).cuda()
             output = net(images)
-            # print(output)
             avg_loss += criterion(output, labels).sum()
             pred = output.data.max(1)[1]
-            # print(pred)
             total_correct += pred.eq(labels.data.view_as(pred)).sum()
             total_len += labels.size(0)
 
@@ -422,7 +420,7 @@ def test(args, net, data_test_loader, criterion):
     # if acc_best < acc:
     #     acc_best = acc
         
-    # print('\n|||| Test Avg. Loss: %f, Accuracy: %f' % (avg_loss.data.item(), acc))
+    print('\n|||| Test Avg. Loss: %f, Accuracy: %f' % (avg_loss.data.item(), acc))
     
     if has_wandb:
         wandb.log({"test_loss": avg_loss.data.item()})
@@ -453,6 +451,9 @@ def test_S(args, net, len_G, num_classes, criterion):
                 _, test_loader = get_split_cifar10(args, args.batch_size, start_class, end_class*(i+1))
             elif args.dataset == 'cifar100':
                 _, test_loader = get_split_cifar100(args, args.batch_size, start_class, end_class*(i+1))
+            elif args.dataset == 'tiny':
+                DATA_DIR = "/data/tiny-imagenet-200"
+                _, test_loader = get_split_TinyImageNet(args, DATA_DIR, args.batch_size, start_class, end_class*(i+1))
 
             for images, labels in test_loader:
                 images, labels = Variable(images).cuda(), Variable(labels).cuda()
@@ -508,6 +509,10 @@ def main():
         teacher = resnet.ResNet34(num_classes=100).cuda()
         ckpt_teacher = torch.load("cache/pretrained/cifar100_resnet34.pth")
         teacher.load_state_dict(ckpt_teacher['state_dict'])
+    elif args.dataset == "tiny":
+        teacher = resnet.ResNet34(num_classes=200).cuda()
+        file_name = "cache/models/tinyimagenet_resnet34.pth"
+        teacher.load_state_dict(torch.load(file_name))
     else:
         teacher = models.resnet34(pretrained=True)
 
@@ -546,52 +551,45 @@ def main():
             start_class = idx
             end_class = idx+1
 
-            # print("\n !!!!! start_class: "+str(start_class)+" end_class: "+str(end_class))
-            # ------------------------------------------------
+            print("\n !!!!! start_class: "+str(start_class)+" end_class: "+str(end_class))
 
-            generator = Generator().cuda()
-            generator = nn.DataParallel(generator)
-
-            # # ---------------
-            # ### way to resume
+            # ---------------
+            # ### way to resume generator
             save_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
 
             if os.path.exists(save_path+"/"+save_name):
-                ckeckpoints = torch.load(save_name)
+                ckeckpoints = torch.load(save_path+"/"+save_name)
                 if ckeckpoints["epoch"] == 50:
-                    print("Generate exits!!", name)
+                    print("Generate exits!!", save_name)
+                    del ckeckpoints
                     continue
             # ------------------------------------------------
-                
-            if args.dataset == 'cifar10':
+            
+            generator = Generator().cuda()
+            generator = nn.DataParallel(generator)
 
+            ### optimization
+            criterion = torch.nn.CrossEntropyLoss().cuda()
+            optimizer_G = torch.optim.Adam(generator.parameters(), lr=args.lr_G)
+            
+            if args.dataset == 'cifar10':
                 ### Create dataset
                 # data_train_loader, data_test_loader = get_split_cifar10(args, args.batch_size, start_class, end_class)
-
-                ### optimization
-                criterion = torch.nn.CrossEntropyLoss().cuda()
-                optimizer_G = torch.optim.Adam(generator.parameters(), lr=args.lr_G)
-                ### student
                 net = resnet.ResNet18().cuda()
-                optimizer_S = torch.optim.SGD(net.parameters(), lr=args.lr_S, momentum=0.9, weight_decay=5e-4)
                 
-                ### Create hooks for feature statistics catching
-                stat_path = "stats/stats_"+args.dataset+"/stats_multi_"+args.ext+"/"+args.hook_type
-                mean_layers_dictionary = torch.load(stat_path+"/mean_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
-                var_layers_dictionary = torch.load(stat_path+"/var_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
-
-            if args.dataset == 'cifar100':
-                ### optimization
-                criterion = torch.nn.CrossEntropyLoss().cuda()
-                optimizer_G = torch.optim.Adam(generator.parameters(), lr=args.lr_G)
-                ### student
+            elif args.dataset == 'cifar100':
                 net = resnet.ResNet18(num_classes=100).cuda()
-                optimizer_S = torch.optim.SGD(net.parameters(), lr=args.lr_S, momentum=0.9, weight_decay=5e-4)
                 
-                ### Create hooks for feature statistics catching
-                stat_path = "stats/stats_"+args.dataset+"/stats_multi_"+args.ext+"/"+args.hook_type
-                mean_layers_dictionary = torch.load(stat_path+"/mean_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
-                var_layers_dictionary = torch.load(stat_path+"/var_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
+            elif args.dataset == 'tiny':
+                net = resnet.ResNet18(num_classes=200).cuda()
+            
+            
+            optimizer_S = torch.optim.SGD(net.parameters(), lr=args.lr_S, momentum=0.9, weight_decay=5e-4)
+
+            ### Create hooks for feature statistics catching
+            stat_path = "stats/stats_"+args.dataset+"/stats_multi_"+args.ext+"/"+args.hook_type
+            mean_layers_dictionary = torch.load(stat_path+"/mean_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
+            var_layers_dictionary = torch.load(stat_path+"/var_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
 
 
             # print("\n||||||||||||||")
@@ -656,6 +654,8 @@ def main():
             num_classes = int(10/num_G)
         elif args.dataset == 'cifar100':
             num_classes = int(100/num_G)
+        elif args.dataset == 'tiny':
+            num_classes = int(200/num_G)
 
         for i in range(0, num_G):
         # for i in range(0, 3):
@@ -693,6 +693,16 @@ def main():
             _, data_test_loader = get_split_cifar100(args, args.batch_size, 0, 100)
 
             net = resnet.ResNet18(num_classes=100).cuda()
+            criterion = torch.nn.CrossEntropyLoss().cuda()
+            optimizer_S = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
+
+        if args.dataset == 'tiny':
+            print("!!!! Tiny ImageNet")
+            DATA_DIR = "/data/tiny-imagenet-200"
+            _, data_test_loader = get_split_TinyImageNet(args, DATA_DIR, args.batch_size, 
+                                                                    start_class, end_class)
+
+            net = resnet.ResNet18(num_classes=200).cuda()
             criterion = torch.nn.CrossEntropyLoss().cuda()
             optimizer_S = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 

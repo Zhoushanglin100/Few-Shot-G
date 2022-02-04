@@ -102,22 +102,28 @@ def get_split_TinyImageNet(args, DATA_DIR, batch_size, start, end):
     TRAIN_DIR = os.path.join(DATA_DIR, 'train') 
     VALID_DIR = os.path.join(DATA_DIR, 'val')
 
-    transform_train = torchvision.transforms.Compose([
-                                torchvision.transforms.Resize(256),               # Resize images to 256 x 256
-                                torchvision.transforms.CenterCrop(224),           # Center crop image
-                                torchvision.transforms.RandomHorizontalFlip(),
-                                torchvision.transforms.ToTensor(),                 # Converting cropped images to tensors
-                                torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                                ])
+    # transform_train = torchvision.transforms.Compose([
+    #                             torchvision.transforms.Resize(256),               # Resize images to 256 x 256
+    #                             torchvision.transforms.CenterCrop(224),           # Center crop image
+    #                             torchvision.transforms.RandomHorizontalFlip(),
+    #                             torchvision.transforms.ToTensor(),                 # Converting cropped images to tensors
+    #                             torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    #                             ])
 
-    transform_test = torchvision.transforms.Compose([
-                                torchvision.transforms.Resize(256),               # Resize images to 256 x 256
-                                torchvision.transforms.CenterCrop(224),           # Center crop image
-                                torchvision.transforms.ToTensor(),                # Converting cropped images to tensors
-                                torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                                ])
+    # transform_test = torchvision.transforms.Compose([
+    #                             torchvision.transforms.Resize(256),               # Resize images to 256 x 256
+    #                             torchvision.transforms.CenterCrop(224),           # Center crop image
+    #                             torchvision.transforms.ToTensor(),                # Converting cropped images to tensors
+    #                             torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    #                             ])
+    preprocess_transform_pretrain = torchvision.transforms.Compose([
+                torchvision.transforms.CenterCrop(32),
+                torchvision.transforms.ToTensor(),  # Converting cropped images to tensors
+                torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                                        std=[0.229, 0.224, 0.225])
+                ])
 
-    train = torchvision.datasets.ImageFolder(TRAIN_DIR, transform=transform_train)
+    train = torchvision.datasets.ImageFolder(TRAIN_DIR, transform=preprocess_transform_pretrain)
 
     # --------------
     # Create separate validation subfolders for the validation images based on
@@ -148,7 +154,7 @@ def get_split_TinyImageNet(args, DATA_DIR, batch_size, start, end):
     #     if os.path.exists(os.path.join(val_img_dir, img)):
     #         os.rename(os.path.join(val_img_dir, img), os.path.join(newpath, img))
 
-    test = torchvision.datasets.ImageFolder(val_img_dir, transform=transform_test)
+    test = torchvision.datasets.ImageFolder(val_img_dir, transform=preprocess_transform_pretrain)
     # --------------
 
     targets_train = torch.tensor(train.targets)

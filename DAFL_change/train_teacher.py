@@ -21,6 +21,15 @@ import torchvision.models as models
 
 import resnet
 
+# try:
+#     import wandb
+#     has_wandb = True
+# except ImportError: 
+#     has_wandb = False
+
+has_wandb = False
+
+# ---------------------------------------------------------------------------
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
@@ -82,9 +91,13 @@ parser.add_argument('--multiprocessing-distributed', action='store_true',
 
 best_acc1 = 0
 
-
+# -----------------------------------------------------------------------
 def main():
     args = parser.parse_args()
+
+    if has_wandb:
+        wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)
+        wandb.config.update(args)
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -137,19 +150,35 @@ def main_worker(gpu, ngpus_per_node, args):
     # create model
     if args.pretrained:
         print("=> using pre-trained model '{}'".format(args.arch))
+        # model = models.__dict__[args.arch](pretrained=True)
+
         model = resnet.ResNet34(num_classes=200).cuda()
-        ckpt_teacher = torch.load("cache/models/tinyimagenet_resnet34.pth")
+        file_name = "cache/models/tinyimagenet_resnet34.pth"
+        print(file_name)
+        ckpt_teacher = torch.load(file_name)
         model.load_state_dict(ckpt_teacher)
         
-        # model = models.__dict__[args.arch](pretrained=True)
+        # model.avg_pool = torch.nn.AvgPool2d(1)
+
+        # model = models.resnet34(num_classes=200)
+        # model = torch.nn.DataParallel(model)
+        # ckpt_teacher = torch.load("model_best.pth.tar")
+        # model.load_state_dict(ckpt_teacher["state_dict"])
 
     else:
         # print("=> creating model '{}'".format(args.arch))
         # model = models.__dict__[args.arch]()
-        model = models.resnet34(num_classes=200)
+        if args.arch == "resnet34":
+            model = models.resnet34(num_classes=200)
+        elif args.arch == "resnet50":
+            model = models.resnet50(num_classes=200)
         model.avgpool = torch.nn.AdaptiveAvgPool2d(1) # https://github.com/pytorch/vision/issues/696
 
-    print(model)
+    # print("---------------------")
+    # print(model)
+    # for name, W in model.named_parameters():
+    #     print(name, W.shape)
+    # print("---------------------")
 
     if not torch.cuda.is_available():
         print('using CPU, this will be slow')
@@ -188,6 +217,7 @@ def main_worker(gpu, ngpus_per_node, args):
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -254,7 +284,7 @@ def main_worker(gpu, ngpus_per_node, args):
     TRAIN_DIR = os.path.join(DATA_DIR, 'train') 
     VALID_DIR = os.path.join(DATA_DIR, 'val')
 
-    def generate_dataloader(data, name, transform):
+    def generate_dataloader(data, name, batch_size, transform):
         if data is None: 
             return None
         if transform is None:
@@ -289,18 +319,25 @@ def main_worker(gpu, ngpus_per_node, args):
     #         os.rename(os.path.join(val_img_dir, img), os.path.join(newpath, img))
 
     preprocess_transform_pretrain = transforms.Compose([
-                    transforms.Resize(256), # Resize images to 256 x 256
-                    transforms.CenterCrop(224), # Center crop image
-                    transforms.RandomHorizontalFlip(),
+                    # transforms.Resize(256), # Resize images to 256 x 256
+                    # transforms.CenterCrop(224), # Center crop image
+
+                    # transforms.Resize(int(64*1.15)),
+                    # transforms.CenterCrop(64),
+
+                    # transforms.Resize(int(32*1.15)),
+                    transforms.CenterCrop(32),
+
+                    # transforms.RandomHorizontalFlip(),
                     transforms.ToTensor(),  # Converting cropped images to tensors
                     transforms.Normalize(mean=[0.485, 0.456, 0.406], 
-                                std=[0.229, 0.224, 0.225])
+                                         std=[0.229, 0.224, 0.225])
     ])
 
     batch_size = args.batch_size
-    train_loader = generate_dataloader(TRAIN_DIR, "train",
+    train_loader = generate_dataloader(TRAIN_DIR, "train", batch_size,
                                     transform=preprocess_transform_pretrain)
-    val_loader = generate_dataloader(val_img_dir, "val",
+    val_loader = generate_dataloader(val_img_dir, "val", batch_size,
                                     transform=preprocess_transform_pretrain)
 
     train_sampler = None
@@ -308,6 +345,11 @@ def main_worker(gpu, ngpus_per_node, args):
     if args.evaluate:
         validate(val_loader, model, criterion, args)
         return
+
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.02, steps_per_epoch=len(train_loader),
+                            epochs=args.epochs, div_factor=10, final_div_factor=10,
+                            pct_start=10/args.epochs)
+
 
     # ---------------------------------------
     for epoch in range(args.start_epoch, args.epochs):
@@ -320,6 +362,8 @@ def main_worker(gpu, ngpus_per_node, args):
 
         # evaluate on validation set
         acc1 = validate(val_loader, model, criterion, args)
+        if has_wandb:
+            wandb.log({"testACC": acc1})
 
         # remember best acc@1 and save checkpoint
         is_best = acc1 > best_acc1
@@ -333,7 +377,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 'state_dict': model.state_dict(),
                 'best_acc1': best_acc1,
                 'optimizer' : optimizer.state_dict(),
-            }, is_best)
+            }, is_best, best_acc1)
 
 # ---------------------------------
 def train(train_loader, model, criterion, optimizer, epoch, args):
@@ -369,6 +413,11 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         losses.update(loss.item(), images.size(0))
         top1.update(acc1[0], images.size(0))
         top5.update(acc5[0], images.size(0))
+
+        if has_wandb:
+            wandb.log({"trainACC@1": acc1[0]})
+            wandb.log({"trainACC@5": acc5[0]})
+            wandb.log({"trainLoss": loss.item()})
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -414,6 +463,11 @@ def validate(val_loader, model, criterion, args):
             top1.update(acc1[0], images.size(0))
             top5.update(acc5[0], images.size(0))
 
+            if has_wandb:
+                wandb.log({"testACC@1": acc1[0]})
+                wandb.log({"testACC@5": acc5[0]})
+                wandb.log({"testLoss": loss.item()})
+
             # measure elapsed time
             batch_time.update(time.time() - end)
             end = time.time()
@@ -426,11 +480,11 @@ def validate(val_loader, model, criterion, args):
     return top1.avg
 
 
-def save_checkpoint(args, state, is_best):
-    filename='checkpoint_'+args.ext+'.pth.tar'
+def save_checkpoint(args, state, is_best, best_acc):
+    filename='checkpoint'+args.ext+'.pth.tar'
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, 'model_best_'+args.ext+'.pth.tar')
+        shutil.copyfile(filename, 'model_best'+args.ext+'.pth.tar')
 
 class Summary(Enum):
     NONE = 0
@@ -503,6 +557,8 @@ class ProgressMeter(object):
 def adjust_learning_rate(optimizer, epoch, args):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
     lr = args.lr * (0.1 ** (epoch // 30))
+    # lr = args.lr * (0.1 ** (epoch // 10))
+
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 

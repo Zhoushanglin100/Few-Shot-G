@@ -20,7 +20,7 @@ import torchvision.datasets as datasets
 import torchvision.models as models
 from kmeans_pytorch import kmeans, kmeans_predict
 
-import resnet as resnet
+import resnet
 
 import collections
 from script import *
@@ -37,13 +37,7 @@ model_names = sorted(name for name in models.__dict__
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 
 parser.add_argument('--dataset', type=str, default='cifar10', 
-                    choices=['MNIST','cifar10','cifar100'])
-parser.add_argument('--data', type=str, default='cache/data/')
-parser.add_argument('--n-divid', type=int, default=10, 
-                    help='number of division of dataset')
-# parser.add_argument('--num_clusters', type=int, default=5, 
-#                     help='number of clusters')
-
+                    choices=['MNIST','cifar10','cifar100', 'tiny'])
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet34',
                     choices=model_names,
                     help='model architecture: ' +
@@ -170,9 +164,12 @@ def main_worker(gpu, ngpus_per_node, args):
             model = resnet.ResNet34(num_classes=100).cuda()
             ckpt_teacher = torch.load("cache/pretrained/cifar100_resnet34.pth")
             model.load_state_dict(ckpt_teacher['state_dict'])
-        elif args.dataset == "Tiny":
+        elif args.dataset == "tiny":
             print("=> Tiny: using pre-trained model resnet34")
-            model = models.resnet34(pretrained=True)
+            # print(file_name)
+            model = resnet.ResNet34(num_classes=200).cuda()
+            file_name = "cache/models/tinyimagenet_resnet34.pth"
+            model.load_state_dict(torch.load(file_name))
     else:
         print("=> creating model '{}'".format(args.arch))
         model = models.__dict__[args.arch]()
@@ -253,8 +250,7 @@ def main_worker(gpu, ngpus_per_node, args):
     
     ### Data loading
     if args.dataset == 'cifar10':
-        args.n_divid = 10
-        n = int(args.n_divid)
+        n = 10
         num_classes = int(10/n)
 
         train_images = None
@@ -286,8 +282,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 # val_labels = torch.cat((val_labels, val_classes))
 
     if args.dataset == 'cifar100':
-        args.n_divid = 100
-        n = int(args.n_divid)
+        n = 100
         num_classes = int(100/n)
 
         train_images = None
@@ -308,12 +303,11 @@ def main_worker(gpu, ngpus_per_node, args):
                 train_images = torch.vstack((train_images, train_inputs))
                 train_labels = torch.cat((train_labels, train_classes))
 
-    if args.dataset == 'Tiny':
+    if args.dataset == 'tiny':
 
         DATA_DIR = "/data/tiny-imagenet-200"
         
-        args.n_divid = 200
-        n = int(args.n_divid)
+        n = 200
         num_classes = int(200/n)
 
         train_images = None
@@ -346,9 +340,13 @@ def main_worker(gpu, ngpus_per_node, args):
 
     c, num_clust, req_c = FINCH(linear_input.detach().cpu().numpy(), distance='cosine')   #  ['cityblock', 'cosine', 'euclidean', 'l1', 'l2', 'manhattan']]
     
-    num_clusters = num_clust[3]
-    cluster_ids_train = torch.tensor(c[:, 3])
-    
+    if args.dataset == "cifar100":
+        num_clusters = num_clust[3]
+        cluster_ids_train = torch.tensor(c[:, 3])
+    elif args.dataset == "tiny":
+        num_clusters = num_clust[-2]
+        cluster_ids_train = torch.tensor(c[:, -2])
+
     print("\nFINCH, choose #cluster=", num_clusters, "\n")
 
     # exit(0)
