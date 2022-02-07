@@ -687,6 +687,9 @@ def main():
             generator.eval()
             G_list.append(generator)
 
+            # del tmp_G
+            # del ckeckpoints['G_state_dict']
+
         print(">>>>> Finish Loading Generators")
 
         # ------------------------------------------------
@@ -715,6 +718,8 @@ def main():
             net = resnet.ResNet18(num_classes=200).cuda()
             criterion = torch.nn.CrossEntropyLoss().cuda()
             optimizer_S = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
+
+        net = nn.DataParallel(net)
 
         # ------------------------------------------------
         if args.resume:
