@@ -82,7 +82,7 @@ if has_wandb:
         #                                                            args.n_epochs, args.n_epochs_G,
         #                                                            args.lr_G, args.lr_S)
         id = "{}_trainG-{}".format(args.dataset, args.ext)
-        id_2 = "{}_trainG-2-{}".format(args.dataset, args.ext)
+        # id_2 = "{}_trainG-2-{}".format(args.dataset, args.ext)
     if args.train_S:
         # id = "trainS-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
         #                                                             args.batch_size, 
@@ -92,12 +92,12 @@ if has_wandb:
         #                                                             args.lr_G, args.lr_S)
         id = "{}_trainS-{}".format(args.dataset, args.ext)
     # if "asimov" in os.environ["$HOSTNAME"]:
-    if args.train_G:
-        wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id_2)
-    else:
-        wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
+    # if args.train_G:
+    #     wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id_2)
     # else:
-        # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)
+    wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
+    # else:
+    # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)
     wandb.config.update(args)
 
 acc = 0
