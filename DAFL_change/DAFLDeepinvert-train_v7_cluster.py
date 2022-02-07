@@ -675,7 +675,7 @@ def main():
             ckeckpoints = torch.load(save_path+'/'+G_name)
 
             tmp_G = {}
-            for k, v in ckeckpoints['G_state_dict']:
+            for k, v in ckeckpoints['G_state_dict'].items():
                 new_k = k[7:]
                 tmp_G[new_k] = v
             
