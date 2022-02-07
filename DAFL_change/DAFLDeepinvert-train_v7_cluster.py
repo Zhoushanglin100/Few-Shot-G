@@ -667,13 +667,23 @@ def main():
             end_class = i+1
 
             generator = Generator() # .cuda()
-            generator = nn.DataParallel(generator)
+            # generator = nn.DataParallel(generator)
 
             # -----------
             G_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
             print(save_path+'/'+G_name)
             ckeckpoints = torch.load(save_path+'/'+G_name)
-            generator.load_state_dict(ckeckpoints['G_state_dict'])
+
+            tmp_G = {}
+            for k, v in ckeckpoints['G_state_dict']:
+                new_k = k[7:]
+                tmp_G[new_k] = v
+            
+            # generator.load_state_dict(ckeckpoints['G_state_dict'])
+
+            generator.load_state_dict(tmp_G)
+            generator = nn.DataParallel(generator)
+
             generator.eval()
             G_list.append(generator)
 
