@@ -730,6 +730,9 @@ def main():
                 optimizer_S.load_state_dict(checkpoint['S_optimizer_state_dict'])
                 resume_epoch = checkpoint['epoch']
                 start_epoch = resume_epoch+1
+
+                net = nn.DataParallel(net)
+
         # ------------------------------------------------
 
         for e in range(start_epoch, args.n_epochs):
@@ -758,7 +761,7 @@ def main():
                                                                                 args.lr_G, args.lr_S)
             # save_name = "student.pth"
             torch.save({'epoch': e,
-                        'S_state_dict': net.state_dict(),
+                        'S_state_dict': net.module.state_dict(),
                         'S_optimizer_state_dict': optimizer_S.state_dict()},
                         save_path+"/"+save_name)
     
