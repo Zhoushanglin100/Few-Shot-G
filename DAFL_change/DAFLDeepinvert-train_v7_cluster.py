@@ -719,7 +719,7 @@ def main():
             criterion = torch.nn.CrossEntropyLoss().cuda()
             optimizer_S = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 
-        net = nn.DataParallel(net)
+        # net = nn.DataParallel(net)
 
         # ------------------------------------------------
         if args.resume:
@@ -736,7 +736,8 @@ def main():
                 resume_epoch = checkpoint['epoch']
                 start_epoch = resume_epoch+1
 
-                net = nn.DataParallel(net)
+
+        net = nn.DataParallel(net)
 
         # ------------------------------------------------
 
