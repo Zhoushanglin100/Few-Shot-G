@@ -28,6 +28,7 @@ if [ "$flag_s1" = "1" ]; then
     CUDA_VISIBLE_DEVICES=2 python3 gen_stats_cluster_finch_feature.py \
                                         --dataset cifar100 \
                                         --pretrained \
+                                        --thrd 50 \
                                         --hook-type $hook_type \
                                         --batch-size $sample_batch \
                                         --ext $ext

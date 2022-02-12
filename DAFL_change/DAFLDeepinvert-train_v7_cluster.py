@@ -552,6 +552,7 @@ def main():
                     print("Generate exits!!", save_name)
                     del ckeckpoints
                     continue
+                    
             # ------------------------------------------------
             
             generator = Generator().cuda()

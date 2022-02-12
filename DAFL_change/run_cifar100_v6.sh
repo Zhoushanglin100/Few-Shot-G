@@ -29,6 +29,7 @@ if [ "$flag_s1" = "1" ]; then
     srun -p $partion --gres=gpu:1 -n 1 --cpus-per-task=4 --exclude=asimov-157 python3 gen_stats_cluster_finch_feature.py \
                                         --dataset cifar100 \
                                         --pretrained \
+                                        --thrd 50 \
                                         --hook-type $hook_type \
                                         --batch-size $sample_batch \
                                         --ext $ext
