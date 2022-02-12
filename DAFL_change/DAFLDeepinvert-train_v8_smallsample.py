@@ -11,13 +11,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 
-# try:
-#     import wandb
-#     has_wandb = True
-# except ImportError: 
-#     has_wandb = False
+try:
+    import wandb
+    has_wandb = True
+except ImportError: 
+    has_wandb = False
 
-has_wandb = False
+# has_wandb = False
 
 ###########################################
 
@@ -37,7 +37,7 @@ parser.add_argument('--train_G', action='store_true', default=False,
 parser.add_argument('--train_S', action='store_true', default=False,
                     help='whether to train student')
 
-# parser.add_argument('--n_divid', type=int, default=5, help='number of division of dataset')
+parser.add_argument('--n_divid', type=int, default=5, help='number of division of dataset')
 parser.add_argument('--total_class', type=int, default=10, help='total number of classes of dataset')
 
 parser.add_argument('--n_epochs_G', type=int, default=50, help='number of epochs of training generator')
@@ -50,7 +50,6 @@ parser.add_argument('--hook_type', type=str, default='output', choices=['input',
                     help = "hook statistics from input data or output data")
 parser.add_argument('--stat_type', type=str, default='extract', choices=['running', 'extract'],
                     help = "statistics from self extracted from a batch or saved stats from teacher")
-parser.add_argument('--stat_bz', type=int, default=1, help='size of the batches')
 
 parser.add_argument('--batch_size', type=int, default=128, help='size of the batches')
 parser.add_argument('--lr_G', type=float, default=0.001, help='learning rate of generator')
@@ -76,10 +75,26 @@ print("-----------------------------")
 
 if has_wandb:
     if args.train_G:
-        id = "FS-{}-trainG-{}".format(args.dataset, args.ext)
+        # id = "trainG-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
+        #                                                            args.batch_size, 
+        #                                                            args.fix_G, 
+        #                                                            args.latent_dim,
+        #                                                            args.n_epochs, args.n_epochs_G,
+        #                                                            args.lr_G, args.lr_S)
+        id = "{}_trainG-{}".format(args.dataset, args.ext)
+        # id_2 = "{}_trainG-2-{}".format(args.dataset, args.ext)
     if args.train_S:
-        id = "FS-{}-trainS-{}".format(args.dataset, args.ext)
+        # id = "trainS-{}-bz{}-{}-ld{}-eN{}-eG{}-lrG{}-lrS{}".format(args.ext, 
+        #                                                             args.batch_size, 
+        #                                                             args.fix_G, 
+        #                                                             args.latent_dim,
+        #                                                             args.n_epochs, args.n_epochs_G,
+        #                                                             args.lr_G, args.lr_S)
+        id = "{}_trainS-{}".format(args.dataset, args.ext)
     # if "asimov" in os.environ["$HOSTNAME"]:
+    # if args.train_G:
+    #     wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id_2)
+    # else:
     wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
     # else:
     # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)#, resume="allow", id=id)
@@ -246,7 +261,7 @@ def train_G(args, idx, net, generator, teacher, epoch,
             lim_0, lim_1, # mean, var,
             loss_r_feature_layers): 
 
-    # print("\n>>>>> Train Generators <<<<<\n")
+    print("\n>>>>> Train Generators <<<<<\n")
 
     if args.dataset != 'MNIST':
         adjust_learning_rate_G(args, optimizer_G, epoch)
@@ -254,8 +269,8 @@ def train_G(args, idx, net, generator, teacher, epoch,
     net.train()
     loss = None
 
-    # for i in range(200):
-    for i in range(3):
+    for i in range(200):
+    # for i in range(3):
 
         z = Variable(torch.randn(args.batch_size, args.latent_dim)).cuda()
 
@@ -304,7 +319,7 @@ def train_G(args, idx, net, generator, teacher, epoch,
         loss += (1.5e-5 * torch.norm(gen_imgs, 2))  # l2 loss
         loss += int(args.lambda_s)*loss_distr                 # best for noise before BN
 
-        if i % 50 == 0:
+        if i % 10 == 0:
             print('Train G_%d, Epoch %d, Batch: %d, Loss: %f' % (idx, epoch, i, loss.data.item()))
 
         if has_wandb:
@@ -515,11 +530,6 @@ def main():
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
-    stat_path = "stats/stats_"+args.dataset+"/stats_multi_splz"+str(args.stat_bz)+"/"+args.hook_type
-
-    n_divid = int(len(os.listdir(stat_path))/2)
-    print("!!!!!!!!", n_divid, "!!!!!!!!!!!!!")
-
     # ------------------------------------------------
     ### train generator
     # if start_epoch <= args.n_epochs_G:
@@ -528,9 +538,7 @@ def main():
         # setting up the range for jitter
         lim_0, lim_1 = 2, 2
 
-        n = int(n_divid)
-
-        # n = int(args.n_divid)
+        n = int(args.n_divid)
         # total = int(args.total_class)
         # num_classes = int(total/n)
 
@@ -549,12 +557,12 @@ def main():
             # ### way to resume generator
             save_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
 
-            # if os.path.exists(save_path+"/"+save_name):
-            #     ckeckpoints = torch.load(save_path+"/"+save_name)
-            #     if ckeckpoints["epoch"] == 50:
-            #         print("Generate exits!!", save_name)
-            #         del ckeckpoints
-            #         continue
+            if os.path.exists(save_path+"/"+save_name):
+                ckeckpoints = torch.load(save_path+"/"+save_name)
+                if ckeckpoints["epoch"] == 50:
+                    print("Generate exits!!", save_name)
+                    del ckeckpoints
+                    continue
             # ------------------------------------------------
             
             generator = Generator().cuda()
@@ -579,8 +587,9 @@ def main():
             optimizer_S = torch.optim.SGD(net.parameters(), lr=args.lr_S, momentum=0.9, weight_decay=5e-4)
 
             ### Create hooks for feature statistics catching
-            mean_layers_dictionary = torch.load(stat_path+"/mean_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
-            var_layers_dictionary = torch.load(stat_path+"/var_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
+            stat_path = "stats/stats_"+args.dataset+"/stats_multi_"+args.ext+"/"+args.hook_type
+            mean_layers_dictionary = torch.load(stat_path+"/mean_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
+            var_layers_dictionary = torch.load(stat_path+"/var_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
 
 
             # print("\n||||||||||||||")
@@ -614,9 +623,7 @@ def main():
             # ------------------------------------------------
             ### start training generator
 
-            # for e in range(start_epoch, args.n_epochs_G+1):
-            for e in range(start_epoch, 2):
-
+            for e in range(start_epoch, args.n_epochs_G+1):
                 if has_wandb:
                     wandb.log({"epoch": e})
 
@@ -626,7 +633,7 @@ def main():
                             loss_r_feature_layers)
             
                 torch.save({'epoch': e,
-                            'G_state_dict': generator.module.state_dict(),
+                            'G_state_dict': generator.state_dict(),
                             'G_optimizer_state_dict':optimizer_G.state_dict()}, 
                             save_path+"/"+save_name)
 
@@ -641,31 +648,40 @@ def main():
         # ------------------------------------------------
         ### load teachers
         G_list = []
-        
-        num_G = int(n_divid)
-        # num_G = int(args.n_divid)
+        num_G = int(args.n_divid)
+
+        if args.dataset == 'cifar10':
+            num_classes = int(10/num_G)
+        elif args.dataset == 'cifar100':
+            num_classes = int(100/num_G)
+        elif args.dataset == 'tiny':
+            num_classes = int(200/num_G)
 
         for i in range(0, num_G):
         # for i in range(0, 3):
 
+            # start_class = i*num_classes
+            # end_class = (i+1)*num_classes
+
             start_class = i
             end_class = i+1
 
-            generator = Generator()
+            generator = Generator() # .cuda()
+            # generator = nn.DataParallel(generator)
 
             # -----------
             G_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
             print(save_path+'/'+G_name)
             ckeckpoints = torch.load(save_path+'/'+G_name)
 
-            # tmp_G = {}
-            # for k, v in ckeckpoints['G_state_dict'].items():
-            #     new_k = k[7:]
-            #     tmp_G[new_k] = v
+            tmp_G = {}
+            for k, v in ckeckpoints['G_state_dict'].items():
+                new_k = k[7:]
+                tmp_G[new_k] = v
             
+            # generator.load_state_dict(ckeckpoints['G_state_dict'])
 
-            # generator.load_state_dict(tmp_G)
-            generator.load_state_dict(ckeckpoints['G_state_dict'])
+            generator.load_state_dict(tmp_G)
             generator = nn.DataParallel(generator)
 
             generator.eval()
@@ -703,6 +719,8 @@ def main():
             criterion = torch.nn.CrossEntropyLoss().cuda()
             optimizer_S = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 
+        # net = nn.DataParallel(net)
+
         # ------------------------------------------------
         if args.resume:
             load_name = "{}_trainS_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.dataset,
@@ -710,6 +728,7 @@ def main():
                                                                                 args.n_epochs, args.n_epochs_G,
                                                                                 args.lr_G, args.lr_S)
             print("!!!! RESUME !!!!")
+            # load_name = 'student.pth'
             if os.path.exists(save_path+'/'+load_name):
                 checkpoint = torch.load(save_path+'/'+load_name)
                 net.load_state_dict(checkpoint['S_state_dict'])
@@ -717,14 +736,18 @@ def main():
                 resume_epoch = checkpoint['epoch']
                 start_epoch = resume_epoch+1
 
-        # ------------------------------------------------
 
         net = nn.DataParallel(net)
+
+        # ------------------------------------------------
 
         for e in range(start_epoch, args.n_epochs):
 
             if has_wandb:
                 wandb.log({"epoch": e})
+
+            # losses = [[] for _ in range(len(G_list))]
+            # accuracy = [[] for _ in range(len(G_list))]
 
             if args.dataset != 'MNIST':
                 adjust_learning_rate(args, optimizer_S, e)
@@ -742,6 +765,7 @@ def main():
                                                                                 args.fix_G, args.latent_dim,
                                                                                 args.n_epochs, args.n_epochs_G,
                                                                                 args.lr_G, args.lr_S)
+            # save_name = "student.pth"
             torch.save({'epoch': e,
                         'S_state_dict': net.module.state_dict(),
                         'S_optimizer_state_dict': optimizer_S.state_dict()},

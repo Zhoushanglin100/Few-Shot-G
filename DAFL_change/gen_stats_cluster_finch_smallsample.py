@@ -4,6 +4,7 @@ import random
 import shutil
 import time
 import warnings
+from matplotlib.pyplot import flag
 
 import torch
 import torch.nn as nn
@@ -37,7 +38,6 @@ parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 
 parser.add_argument('--dataset', type=str, default='cifar10', 
                     choices=['MNIST','cifar10','cifar100', 'tiny'])
-parser.add_argument('--data', type=str, default='cache/data/')
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet34',
                     choices=model_names,
                     help='model architecture: ' +
@@ -45,8 +45,6 @@ parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet34',
                         ' (default: resnet18)')
 parser.add_argument('--hook-type', type=str, default='output', choices=['input', 'output'],
                     help = "hook statistics from input data or output data")
-parser.add_argument('--thrd', '--cluster-threshold', default=50, type=int, metavar='N',
-                    help='maximum number of generators can train')
 parser.add_argument('--ext', type=str, default='')
 
 parser.add_argument('--teacher-dir', type=str, default='cache/models/')
@@ -336,27 +334,26 @@ def main_worker(gpu, ngpus_per_node, args):
     train_images_shuffle, train_labels_shuffle = train_images[p], train_labels[p]
 
     feature_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(train_images_shuffle, train_labels_shuffle), batch_size=args.batch_size)
-    linear_input, linear_output, target_lst = validate(feature_loader, model, criterion, args)
+    linear_input, linear_output = validate(feature_loader, model, criterion, args)
     print(linear_input.shape)
     print("BZ=", args.batch_size)
 
-    c, num_clust, req_c = FINCH(linear_input.detach().cpu().numpy(), distance='cosine', ensure_early_exit=True)   #  ['cityblock', 'cosine', 'euclidean', 'l1', 'l2', 'manhattan']]
-
-    # # ------------------------------------
-    # from sklearn.metrics import normalized_mutual_info_score as nmi
-    # for i in range(len(num_clust)):
-    #     acc = nmi(target_lst.detach().cpu().numpy(), c[:,i], average_method="max")
-    #     print(acc)
-    # # ------------------------------------
-
-    cluster_ids, num_clusters = [g for g in enumerate(num_clust) if g[1] < args.thrd][0]
-    cluster_ids_train = torch.tensor(c[:, cluster_ids])
+    c, num_clust, req_c = FINCH(linear_input.detach().cpu().numpy(), distance='cosine')   #  ['cityblock', 'cosine', 'euclidean', 'l1', 'l2', 'manhattan']]
+    
+    if args.dataset == "cifar100":
+        num_clusters = num_clust[3]
+        cluster_ids_train = torch.tensor(c[:, 3])
+    elif args.dataset == "tiny":
+        num_clusters = num_clust[-2]
+        cluster_ids_train = torch.tensor(c[:, -2])
 
     print("\nFINCH, choose #cluster=", num_clusters, "\n")
 
+    # exit(0)
+
     # ---------------------------------
     ### cluster
-    # train_images_rsp = train_images.reshape(n*args.batch_size,-1)
+    train_images_rsp = train_images.reshape(n*args.batch_size,-1)
     # val_images_rsp = val_images.reshape(val_images.shape[0],-1)
 
     ### kmeans
@@ -490,7 +487,7 @@ def train(args, train_loader, model, criterion, optimizer, epoch, start_class, e
         # print(mean_layers_dictionary.keys())
 
         ### save generated statistics
-        save_path = "stats/stats_"+args.dataset+"/stats_multi_splz"+str(args.batch_size)+"/"+args.hook_type
+        save_path = "stats/stats_"+args.dataset+"/stats_multi_"+args.ext+"/"+args.hook_type
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         torch.save(mean_layers_dictionary, save_path+"/mean_"+args.arch+"_"+"start-"+str(start_class)+"_end-"+str(end_class)+".pth")
@@ -525,7 +522,6 @@ def validate(val_loader, model, criterion, args):
 
             # ------------------------
             res5c_input, res5c_output = None, None
-
             def res5c_hook(module, input_, output):
                 nonlocal res5c_output
                 nonlocal res5c_input
@@ -541,13 +537,11 @@ def validate(val_loader, model, criterion, args):
             if i == 0:
                 res5c_input_lst = res5c_input[0]
                 res5c_output_lst = res5c_output
-                target_lst = target
             else:
                 res5c_input_lst = torch.vstack((res5c_input_lst, res5c_input[0]))
                 res5c_output_lst = torch.vstack((res5c_output_lst, res5c_output))
-                target_lst = torch.hstack((target_lst, target))
 
-    return res5c_input_lst, res5c_output_lst, target_lst
+    return res5c_input_lst, res5c_output_lst
 
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
