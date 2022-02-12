@@ -11,13 +11,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 
-# try:
-#     import wandb
-#     has_wandb = True
-# except ImportError: 
-#     has_wandb = False
+try:
+    import wandb
+    has_wandb = True
+except ImportError: 
+    has_wandb = False
 
-has_wandb = False
+# has_wandb = False
 
 ###########################################
 
@@ -254,8 +254,8 @@ def train_G(args, idx, net, generator, teacher, epoch,
     net.train()
     loss = None
 
-    # for i in range(200):
-    for i in range(3):
+    for i in range(200):
+    # for i in range(3):
 
         z = Variable(torch.randn(args.batch_size, args.latent_dim)).cuda()
 
@@ -304,8 +304,8 @@ def train_G(args, idx, net, generator, teacher, epoch,
         loss += (1.5e-5 * torch.norm(gen_imgs, 2))  # l2 loss
         loss += int(args.lambda_s)*loss_distr                 # best for noise before BN
 
-        if i % 50 == 0:
-            print('Train G_%d, Epoch %d, Batch: %d, Loss: %f' % (idx, epoch, i, loss.data.item()))
+        # if i % 50 == 0:
+        #     print('Train G_%d, Epoch %d, Batch: %d, Loss: %f' % (idx, epoch, i, loss.data.item()))
 
         if has_wandb:
             wandb.log({"loss_G/OneHot_Loss_"+str(idx): loss_one_hot.item()})
@@ -373,8 +373,8 @@ def train_S(args, net, G_list, teacher, epoch, optimizer_S):
         if has_wandb:
             wandb.log({"total_loss_S": loss.item()})
 
-        # if i % 10 == 0:
-        #     print('Student Train - Epoch %d, Batch: %d, Loss: %f' % (epoch, i, loss.data.item()))
+        if i % 100 == 0:
+            print('Student Train - Epoch %d, Batch: %d, Loss: %f' % (epoch, i, loss.data.item()))
 
         loss.backward()
         optimizer_S.step()
@@ -614,8 +614,8 @@ def main():
             # ------------------------------------------------
             ### start training generator
 
-            # for e in range(start_epoch, args.n_epochs_G+1):
-            for e in range(start_epoch, 2):
+            for e in range(start_epoch, args.n_epochs_G+1):
+            # for e in range(start_epoch, 2):
 
                 if has_wandb:
                     wandb.log({"epoch": e})

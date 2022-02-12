@@ -22,8 +22,7 @@ fi
 
 export partion=$8
 
-
-export ext=$Smp{sample_batch}_${hook_type}_R${lambda_s}_ld${latent_dim}_Gbz${train_G_bz}_Sbz${train_S_bz}
+export ext=Smp${sample_batch}_${hook_type}_R${lambda_s}_ld${latent_dim}_Gbz${train_G_bz}_Sbz${train_S_bz}
 
 
 if [ "$flag_s1" = "1" ]; then 
