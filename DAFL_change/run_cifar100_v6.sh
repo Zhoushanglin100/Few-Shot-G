@@ -36,11 +36,9 @@ fi
 if [ "$flag_s2" = "1" ]; then 
     srun -p $partion --gres=gpu:1 -n 1 --cpus-per-task=4 --exclude=asimov-157 python3 DAFLDeepinvert-train_v7_cluster.py \
                                         --dataset cifar100 \
-                                        --total_class 100 \
                                         --fix_G \
                                         --train_G \
                                         --n_epochs_G 50 \
-                                        --n_epochs 2000 \
                                         --lr_G 0.001 \
                                         --batch_size $train_G_bz \
                                         --hook_type $hook_type \

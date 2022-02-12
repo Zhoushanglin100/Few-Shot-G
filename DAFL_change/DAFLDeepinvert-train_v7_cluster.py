@@ -38,7 +38,7 @@ parser.add_argument('--train_S', action='store_true', default=False,
                     help='whether to train student')
 
 # parser.add_argument('--n_divid', type=int, default=5, help='number of division of dataset')
-parser.add_argument('--total_class', type=int, default=10, help='total number of classes of dataset')
+# parser.add_argument('--total_class', type=int, default=10, help='total number of classes of dataset')
 
 parser.add_argument('--n_epochs_G', type=int, default=50, help='number of epochs of training generator')
 parser.add_argument('--n_epochs', type=int, default=2000, help='number of epochs of training total')
@@ -537,9 +537,6 @@ def main():
         ### iteratively train generators
         for idx in range(0, n):
             
-            # start_class = idx*num_classes
-            # end_class = (idx+1)*num_classes
-
             start_class = idx
             end_class = idx+1
 
@@ -549,12 +546,12 @@ def main():
             # ### way to resume generator
             save_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
 
-            # if os.path.exists(save_path+"/"+save_name):
-            #     ckeckpoints = torch.load(save_path+"/"+save_name)
-            #     if ckeckpoints["epoch"] == 50:
-            #         print("Generate exits!!", save_name)
-            #         del ckeckpoints
-            #         continue
+            if os.path.exists(save_path+"/"+save_name):
+                ckeckpoints = torch.load(save_path+"/"+save_name)
+                if ckeckpoints["epoch"] == 50:
+                    print("Generate exits!!", save_name)
+                    del ckeckpoints
+                    continue
             # ------------------------------------------------
             
             generator = Generator().cuda()
