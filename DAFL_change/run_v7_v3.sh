@@ -34,18 +34,18 @@
 
 # -------------------------------
 
-bash run_cifar100_v6.sh output 2 128 100 3000 128 s3 $1 &
+# bash run_cifar100_v6.sh output 2 128 100 3000 128 s3 $1 &
 bash run_cifar100_v6.sh output 2 128 100 1000 128 s3 $1 &
-bash run_cifar100_v6.sh output 2 128 10 1000 128 s3 $1 &
-bash run_cifar100_v6.sh output 2 128 10 3000 128 s3 $1 &
+# bash run_cifar100_v6.sh output 2 128 10 1000 128 s3 $1 &
+# bash run_cifar100_v6.sh output 2 128 10 3000 128 s3 $1 &
 
 bash run_cifar100_v6.sh output 1 128 100 3000 128 s3 $1 &
 bash run_cifar100_v6.sh output 1 128 100 1000 128 s3 $1 &
 bash run_cifar100_v6.sh output 1 128 10 3000 128 s3 $1 &
-bash run_cifar100_v6.sh output 1 128 10 1000 128 s3 $1 &
+# bash run_cifar100_v6.sh output 1 128 10 1000 128 s3 $1 &
 
 ### 
 # bash run_cifar10_v2.sh output 2 128 100 3000 128 s3 $1 &
 # bash run_cifar10_v2.sh output 1 128 100 3000 128 s3 $1 &
 # bash run_cifar10_v2.sh output 2 128 10 3000 128 s3 $1 &
-bash run_cifar10_v2.sh output 1 128 10 3000 128 s3 $1 &
+# bash run_cifar10_v2.sh output 1 128 10 3000 128 s3 $1 &
