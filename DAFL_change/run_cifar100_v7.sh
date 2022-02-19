@@ -5,7 +5,9 @@ export lambda_s=$4
 export latent_dim=$5
 export train_S_bz=$6
 
-export step=$7
+export data_type=$7
+
+export step=$8
 if [ "$step" = "s1" ]; then 
     export flag_s1=1
     export flag_s2=1
@@ -20,14 +22,15 @@ elif [ "$step" = "s3" ]; then
     export flag_s3=1
 fi
 
-export partion=$8
+export partion=$9
 
-export ext=Smp${sample_batch}_${hook_type}_R${lambda_s}_ld${latent_dim}_Gbz${train_G_bz}_Sbz${train_S_bz}
+export ext=NC_Smp${sample_batch}_${hook_type}_R${lambda_s}_ld${latent_dim}_Gbz${train_G_bz}_Sbz${train_S_bz}
 
 
 if [ "$flag_s1" = "1" ]; then 
     srun -p $partion --gres=gpu:1 -n 1 --cpus-per-task=4 --exclude=asimov-157 python3 gen_stats_cluster_finch_feature.py \
-                                        --dataset cifar10 \
+                                        --dataset cifar100 \
+                                        --data-type $data_type \
                                         --pretrained \
                                         --thrd 20 \
                                         --hook-type $hook_type \
@@ -36,7 +39,7 @@ if [ "$flag_s1" = "1" ]; then
 fi
 if [ "$flag_s2" = "1" ]; then 
     srun -p $partion --gres=gpu:1 -n 1 --cpus-per-task=4 --exclude=asimov-157 python3 DAFLDeepinvert-train_v7_cluster.py \
-                                        --dataset cifar10 \
+                                        --dataset cifar100 \
                                         --fix_G \
                                         --train_G \
                                         --n_epochs_G 50 \
@@ -50,10 +53,11 @@ if [ "$flag_s2" = "1" ]; then
 fi
 if [ "$flag_s3" = "1" ]; then 
     srun -p $partion --gres=gpu:4 -n 1 --cpus-per-task=16 --exclude=asimov-157 python3 DAFLDeepinvert-train_v7_cluster.py \
-                                        --dataset cifar10 \
+                                        --dataset cifar100 \
                                         --fix_G \
                                         --train_S \
                                         --n_epochs 2000 \
+                                        --stat_bz $sample_batch \
                                         --batch_size $train_S_bz \
                                         --lr_S 0.06 \
                                         --hook_type $hook_type \

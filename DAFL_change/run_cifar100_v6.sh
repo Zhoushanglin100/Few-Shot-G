@@ -41,6 +41,7 @@ if [ "$flag_s2" = "1" ]; then
                                         --train_G \
                                         --n_epochs_G 50 \
                                         --lr_G 0.001 \
+                                        --stat_bz $sample_batch \
                                         --batch_size $train_G_bz \
                                         --hook_type $hook_type \
                                         --lambda_s $lambda_s \

@@ -377,23 +377,23 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         if torch.cuda.is_available():
             target = target.cuda(args.gpu, non_blocking=True)
 
-        # ------------------------
-        res5c_output = None
-        def res5c_hook(module, input_, output):
-            nonlocal res5c_output
-            res5c_output = output
-        # ------------------------
+        # # ------------------------
+        # res5c_output = None
+        # def res5c_hook(module, input_, output):
+        #     nonlocal res5c_output
+        #     res5c_output = output
+        # # ------------------------
 
-        # model.module.layer4[1].bn2.register_forward_hook(res5c_hook)
-        model.module.linear.register_forward_hook(res5c_hook)
+        # # model.module.layer4[1].bn2.register_forward_hook(res5c_hook)
+        # model.module.linear.register_forward_hook(res5c_hook)
 
         # compute output
         output = model(images)
         loss = criterion(output, target)
 
-        print("!!!!!", res5c_output.shape)
+        # print("!!!!!", res5c_output.shape)
 
-        exit(0)
+        # exit(0)
         # measure accuracy and record loss
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
         losses.update(loss.item(), images.size(0))
@@ -416,14 +416,11 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         # store names of BN
         name_layers = []
         
-        #temp = torch.load("mean.pth")
-        #print(temp['module.bn1'])
-        #print(temp)
-        #exit(0)
-        #for i in temp:
-            #print(i)
-            #print(temp[i])
-            #exit(0)
+        # temp = torch.load("mean_resnet.pth")
+        # for i in temp:
+        #     print(i, temp[i].shape)
+        # exit(0)
+
         def hook_fn_forward(module, input, output):
             # first input dim ([64,64,112,112])
             

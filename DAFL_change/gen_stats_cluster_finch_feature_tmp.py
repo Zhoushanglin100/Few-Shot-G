@@ -37,8 +37,6 @@ parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 
 parser.add_argument('--dataset', type=str, default='cifar10', 
                     choices=['MNIST','cifar10','cifar100', 'tiny'])
-parser.add_argument('--data-type', type=str, default='everyclass', 
-                    choices=['everyclass', 'sample'])
 parser.add_argument('--data', type=str, default='cache/data/')
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet34',
                     choices=model_names,
@@ -47,7 +45,7 @@ parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet34',
                         ' (default: resnet18)')
 parser.add_argument('--hook-type', type=str, default='output', choices=['input', 'output'],
                     help = "hook statistics from input data or output data")
-parser.add_argument('--thrd', '--cluster-threshold', default=20, type=int, metavar='N',
+parser.add_argument('--thrd', '--cluster-threshold', default=50, type=int, metavar='N',
                     help='maximum number of generators can train')
 parser.add_argument('--ext', type=str, default='')
 
@@ -244,109 +242,100 @@ def main_worker(gpu, ngpus_per_node, args):
     #         print(name, W.shape)
     # print("||||||||||||||\n")
 
+    # print(model.module.bn1.running_mean.data)
+    # print(model.module.layer1[0].bn1.running_mean.data)
+    # print(model.module.bn1.running_mean.data.shape, 
+    #         model.module.layer1[0].bn1.running_mean.data.shape)
+    # exit(0)
+
     cudnn.benchmark = True
     
-    # #######################################################
-    # ### get stat of one batch --> store stat of BN
-    # ### check
-    # temp = torch.load("stats/stats_cifar10/stats_multi_splz_4_64/output/mean_resnet34_start-0_end-1.pth")
-    # for i in temp:
-    #     print(i, temp[i].shape)
-    # exit(0)
-    # #######################################################
-
     ### Data loading
-    if args.data_type == "sample":
-        print("!!!!!!!!! SAMPLE")
-        transform_train = torchvision.transforms.Compose([
-            torchvision.transforms.RandomCrop(32, padding=4),
-            torchvision.transforms.RandomHorizontalFlip(),
-            torchvision.transforms.ToTensor(),
-            torchvision.transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
-            ])
+    if args.dataset == 'cifar10':
+        n = 10
+        num_classes = int(10/n)
 
-        if args.dataset == 'cifar10':
-            trainset = torchvision.datasets.CIFAR10(args.data, train=True, download=True, transform=transform_train)        
-        if args.dataset == 'cifar100':
-            trainset = torchvision.datasets.CIFAR100(args.data, train=True, download=True, transform=transform_train)
-        if args.dataset == 'Tiny':
-            DATA_DIR = "/data/tiny-imagenet-200"
-            TRAIN_DIR = os.path.join(DATA_DIR, 'train') 
-            preprocess_transform_pretrain = torchvision.transforms.Compose([
-                        torchvision.transforms.CenterCrop(32),
-                        torchvision.transforms.ToTensor(),  # Converting cropped images to tensors
-                        torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-                        ])
-            trainset = torchvision.datasets.ImageFolder(TRAIN_DIR, transform=preprocess_transform_pretrain)
+        train_images = None
+        train_labels = None
+
+        # val_images = None
+        # val_labels = None
+
+        for idx in range(0, n):
+            start_class = idx*num_classes
+            end_class = (idx+1)*num_classes
+
+            print("-----> start_class: "+str(start_class)+" end_class: "+str(end_class))
+
+            train_loader, val_loader = get_split_cifar10(args, args.batch_size, start_class, end_class)
+            train_inputs, train_classes = next(iter(train_loader))   
+            # val_inputs, val_classes = next(iter(train_loader))   
+
+            if idx == 0:
+                train_images = train_inputs
+                train_labels = train_classes
+                # val_images = val_inputs
+                # val_labels = val_classes
+            else:
+                train_images = torch.vstack((train_images, train_inputs))
+                train_labels = torch.cat((train_labels, train_classes))
+                # val_images = torch.vstack((val_images, val_inputs))
+                # val_labels = torch.cat((val_labels, val_classes))
+
+    if args.dataset == 'cifar100':
+        n = 100
+        num_classes = int(100/n)
+
+        train_images = None
+        train_labels = None
+
+        for idx in range(0, n):
+            start_class = idx*num_classes
+            end_class = (idx+1)*num_classes
+
+            print("-----> start_class: "+str(start_class)+" end_class: "+str(end_class))
+            train_loader, val_loader = get_split_cifar100(args, args.batch_size, start_class, end_class)
+            train_inputs, train_classes = next(iter(train_loader))   
+
+            if idx == 0:
+                train_images = train_inputs
+                train_labels = train_classes
+            else:
+                train_images = torch.vstack((train_images, train_inputs))
+                train_labels = torch.cat((train_labels, train_classes))
+
+    if args.dataset == 'tiny':
+
+        DATA_DIR = "/data/tiny-imagenet-200"
         
-        train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=8)
-        feature_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(next(iter(train_loader))[0], next(iter(train_loader))[1]), batch_size=args.batch_size)
+        n = 200
+        num_classes = int(200/n)
 
-    elif args.data_type == "everyclass":
-        print("!!!!!!!!! EVERY CLASS")
-        if args.dataset == 'cifar10':
-            n = 10
-            num_classes = int(10/n)
-            train_images = None
-            train_labels = None
-            for idx in range(0, n):
-                start_class = idx*num_classes
-                end_class = (idx+1)*num_classes
-                print("-----> start_class: "+str(start_class)+" end_class: "+str(end_class))
-                train_loader, val_loader = get_split_cifar10(args, args.batch_size, start_class, end_class)
-                train_inputs, train_classes = next(iter(train_loader))   
-                if idx == 0:
-                    train_images = train_inputs
-                    train_labels = train_classes
-                else:
-                    train_images = torch.vstack((train_images, train_inputs))
-                    train_labels = torch.cat((train_labels, train_classes))
+        train_images = None
+        train_labels = None
 
-        if args.dataset == 'cifar100':
-            n = 100
-            num_classes = int(100/n)
-            train_images = None
-            train_labels = None
-            for idx in range(0, n):
-                start_class = idx*num_classes
-                end_class = (idx+1)*num_classes
-                print("-----> start_class: "+str(start_class)+" end_class: "+str(end_class))
-                train_loader, val_loader = get_split_cifar100(args, args.batch_size, start_class, end_class)
-                train_inputs, train_classes = next(iter(train_loader))   
-                if idx == 0:
-                    train_images = train_inputs
-                    train_labels = train_classes
-                else:
-                    train_images = torch.vstack((train_images, train_inputs))
-                    train_labels = torch.cat((train_labels, train_classes))
+        for idx in range(0, n):
+            start_class = idx*num_classes
+            end_class = (idx+1)*num_classes
 
-        if args.dataset == 'tiny':
-            DATA_DIR = "/data/tiny-imagenet-200"
-            n = 200
-            num_classes = int(200/n)
-            train_images = None
-            train_labels = None
-            for idx in range(0, n):
-                start_class = idx*num_classes
-                end_class = (idx+1)*num_classes
-                print("-----> start_class: "+str(start_class)+" end_class: "+str(end_class))
-                train_loader, val_loader = get_split_TinyImageNet(args, DATA_DIR, args.batch_size, 
-                                                                        start_class, end_class)
-                train_inputs, train_classes = next(iter(train_loader))   
-                if idx == 0:
-                    train_images = train_inputs
-                    train_labels = train_classes
-                else:
-                    train_images = torch.vstack((train_images, train_inputs))
-                    train_labels = torch.cat((train_labels, train_classes))
+            print("-----> start_class: "+str(start_class)+" end_class: "+str(end_class))
+            train_loader, val_loader = get_split_TinyImageNet(args, DATA_DIR, args.batch_size, 
+                                                                    start_class, end_class)
+            train_inputs, train_classes = next(iter(train_loader))   
 
-        p = np.random.permutation(len(train_labels))
-        train_images_shuffle, train_labels_shuffle = train_images[p], train_labels[p]
-        feature_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(train_images_shuffle, train_labels_shuffle), batch_size=args.batch_size)
+            if idx == 0:
+                train_images = train_inputs
+                train_labels = train_classes
+            else:
+                train_images = torch.vstack((train_images, train_inputs))
+                train_labels = torch.cat((train_labels, train_classes))
 
     # -----------------------------------
+    p = np.random.permutation(len(train_labels))
+    train_images_shuffle, train_labels_shuffle = train_images[p], train_labels[p]
 
-    linear_input, linear_output = validate(feature_loader, model, args)
+    feature_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(train_images_shuffle, train_labels_shuffle), batch_size=args.batch_size)
+    linear_input, linear_output, target_lst = validate(feature_loader, model, criterion, args)
     print(linear_input.shape)
     print("BZ=", args.batch_size)
 
@@ -389,15 +378,13 @@ def main_worker(gpu, ngpus_per_node, args):
 
     for idx_cluster in range(num_clusters):
 
-        train_images = feature_loader.dataset.tensors[0]
-
         train_images_idx = train_images[torch.where(cluster_ids_train == idx_cluster)]
-        train_label_idx = cluster_ids_train[torch.where(cluster_ids_train == idx_cluster)]-idx_cluster
+        train_label_idx = cluster_ids_train[torch.where(cluster_ids_train == idx_cluster)]
 
         dataset_cluster = torch.utils.data.TensorDataset(train_images_idx, train_label_idx)
-        train_loader_cluster = torch.utils.data.DataLoader(dataset_cluster, batch_size=len(train_label_idx))
+        train_loader_cluster = torch.utils.data.DataLoader(dataset_cluster)
 
-        print(idx_cluster, train_images_idx.shape)
+        print(num_clusters, train_images_idx.shape, train_label_idx.shape)
         
         # ---------------------------------
 
@@ -423,34 +410,17 @@ def train(args, train_loader, model, criterion, optimizer, epoch, start_class, e
 
     model.train()
 
-    # ----------------------------------------
-    name_layers = []
-    def hook_fn_forward(module, input, output):
-        if args.hook_type == "output":
-            nch = output.shape[1]
-            mean = output.mean([0,2,3]).cpu().detach()
-            var = output.permute(1, 0, 2, 3).contiguous().view([nch, -1]).var(1, unbiased=False).cpu().detach()
-        elif args.hook_type == "input":   
-            nch = input[0].shape[1]
-            mean = input[0].mean([0, 2, 3]).cpu().detach()
-            var = input[0].permute(1, 0, 2, 3).contiguous().view([nch, -1]).var(1, unbiased=False).cpu().detach()    
-        mean_layers.append(mean)
-        var_layers.append(var)
-
-    for name_stat, module_stat in model.named_modules():
-        # if isinstance(module_stat, nn.BatchNorm2d):
-        if ("bn" in name_stat) or ("downsample.1" in name_stat):
-        #if isinstance(module_stat,nn.Conv2d): 
-            module_stat.register_forward_hook(hook_fn_forward)
-            name_layers.append(name_stat)
-    # ----------------------------------------
-
     end = time.time()
     for i, (images, target) in enumerate(train_loader):
         data_time.update(time.time() - end)
 
-        images = images.cuda(args.gpu, non_blocking=True)
-        target = target.cuda(args.gpu, non_blocking=True).to(dtype=torch.long)
+        if args.gpu is not None:
+            print('555-1')
+            images = images.cuda(args.gpu, non_blocking=True)
+        if torch.cuda.is_available():
+            print('555-2')
+            images = images.cuda(args.gpu, non_blocking=True)
+            target = target.cuda(args.gpu, non_blocking=True).to(dtype=torch.long)
 
         output = model(images)
         loss = criterion(output, target)
@@ -466,6 +436,47 @@ def train(args, train_loader, model, criterion, optimizer, epoch, start_class, e
 
         batch_time.update(time.time() - end)
         end = time.time()
+        
+        # #######################################################
+        # ### get stat of one batch --> store stat of BN
+        # ### check
+        # temp = torch.load("stats/stats_cifar10/stats_multi_aaa1/output/mean_resnet34_start-0_end-1.pth")
+        # for i in temp:
+        #     print(i, temp[i].shape)
+        # exit(0)
+        # #######################################################
+
+        name_layers = []
+        
+        def hook_fn_forward(module, input, output):
+            # first input dim ([64,64,112,112])
+        
+            if args.hook_type == "output":
+                nch = output.shape[1]
+                mean = output.mean([0,2,3]).cpu().detach()
+                var = output.permute(1, 0, 2, 3).contiguous().view([nch, -1]).var(1, unbiased=False).cpu().detach()
+            elif args.hook_type == "input":   
+                nch = input[0].shape[1]
+                mean = input[0].mean([0, 2, 3]).cpu().detach()
+                var = input[0].permute(1, 0, 2, 3).contiguous().view([nch, -1]).var(1, unbiased=False).cpu().detach()    
+            
+            mean_layers.append(mean)
+            var_layers.append(var)
+        
+        for name_stat, module_stat in model.named_modules():
+            # print(name_stat)
+            # print(module_stat)
+
+            # if isinstance(module_stat, nn.BatchNorm2d):
+            if ("bn" in name_stat) or ("downsample.1" in name_stat):
+            #if len(module_stat.size()) == 4:
+            #if isinstance(module_stat,nn.Conv2d): 
+                module_stat.register_forward_hook(hook_fn_forward)
+                name_layers.append(name_stat)
+        # exit(0)
+        #print(name_layers)
+        #print(len(mean_layers))
+        #exit(0)
 
         ### construct dict to store mean and var
         mean_layers_dictionary, var_layers_dictionary = dict(zip(name_layers, mean_layers)), dict(zip(name_layers, var_layers))
@@ -477,7 +488,7 @@ def train(args, train_loader, model, criterion, optimizer, epoch, start_class, e
         # print(mean_layers_dictionary.keys())
 
         ### save generated statistics
-        save_path = "stats/stats_"+args.dataset+"/stats_multi_splz"+str(args.batch_size)+"/"+args.hook_type
+        save_path = "stats/stats_"+args.dataset+"/stats_multi_aaa"+str(args.batch_size)+"/"+args.hook_type
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         torch.save(mean_layers_dictionary, save_path+"/mean_"+args.arch+"_"+"start-"+str(start_class)+"_end-"+str(end_class)+".pth")
@@ -485,45 +496,63 @@ def train(args, train_loader, model, criterion, optimizer, epoch, start_class, e
 
         if i % args.print_freq == 0:
             progress.display(i)
+        if i == 1:
+            return
+        
 
-# ---------------------------------------------------------------------
-
-def validate(val_loader, model, args):
+def validate(val_loader, model, criterion, args):
+    batch_time = AverageMeter('Time', ':6.3f')
+    losses = AverageMeter('Loss', ':.4e')
+    top1 = AverageMeter('Acc@1', ':6.2f')
+    top5 = AverageMeter('Acc@5', ':6.2f')
+    progress = ProgressMeter(
+        len(val_loader),
+        [batch_time, losses, top1, top5],
+        prefix='Test: ')
 
     model.eval()
 
     with torch.no_grad():
-        for i, (images, _) in enumerate(val_loader):
-
-            images = images.cuda(args.gpu, non_blocking=True)
+        end = time.time()
+        for i, (images, target) in enumerate(val_loader):
+            if args.gpu is not None:
+                images = images.cuda(args.gpu, non_blocking=True)
+            if torch.cuda.is_available():
+                images = images.cuda(args.gpu, non_blocking=True)
+                target = target.cuda(args.gpu, non_blocking=True)
 
             # ------------------------
             res5c_input, res5c_output = None, None
+
             def res5c_hook(module, input_, output):
                 nonlocal res5c_output
                 nonlocal res5c_input
                 res5c_output = output
                 res5c_input = input_
+
             model.linear.register_forward_hook(res5c_hook)
             # ------------------------
-            ### compute output (must have for hook) 
+
+            # compute output
             output = model(images)
 
             if i == 0:
                 res5c_input_lst = res5c_input[0]
                 res5c_output_lst = res5c_output
+                target_lst = target
             else:
                 res5c_input_lst = torch.vstack((res5c_input_lst, res5c_input[0]))
                 res5c_output_lst = torch.vstack((res5c_output_lst, res5c_output))
+                target_lst = torch.hstack((target_lst, target))
 
-    return res5c_input_lst, res5c_output_lst
+    return res5c_input_lst, res5c_output_lst, target_lst
 
-# ---------------------------------------------------------------------
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     torch.save(state, filename)
     if is_best:
         shutil.copyfile(filename, 'model_best.pth.tar')
+
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
