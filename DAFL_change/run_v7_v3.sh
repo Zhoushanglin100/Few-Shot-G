@@ -39,9 +39,9 @@
 # bash run_cifar100_v6.sh output 2 128 10 1000 128 s3 $1 &
 # bash run_cifar100_v6.sh output 2 128 10 3000 128 s3 $1 &
 
-# bash run_cifar100_v6.sh output 1 128 100 3000 128 s3 $1 &
+bash run_cifar100_v6.sh output 1 128 100 3000 128 s3 $1 &
 # bash run_cifar100_v6.sh output 1 128 100 1000 128 s3 $1 &
-# bash run_cifar100_v6.sh output 1 128 10 3000 128 s3 $1 &
+bash run_cifar100_v6.sh output 1 128 10 3000 128 s3 $1 &
 bash run_cifar100_v6.sh output 1 128 10 1000 128 s3 $1 &
 
 ### 
@@ -53,18 +53,18 @@ bash run_cifar100_v6.sh output 1 128 10 1000 128 s3 $1 &
 
 # -------------------------------
 
-bash run_cifar100_v7.sh output 128 128 100 3000 128 sample s1 $1 &
-bash run_cifar100_v7.sh output 128 128 100 1000 128 sample s1 $1 &
+bash run_cifar100_v7.sh output 128 128 100 3000 128 sample s2 $1 &
+bash run_cifar100_v7.sh output 128 128 100 1000 128 sample s2 $1 &
 
-bash run_cifar100_v7.sh output 64 128 100 3000 128 sample s1 $1 &
-bash run_cifar100_v7.sh output 64 128 100 1000 128 sample s1 $1 &
+bash run_cifar100_v7.sh output 64 128 100 3000 128 sample s2 $1 &
+bash run_cifar100_v7.sh output 64 128 100 1000 128 sample s2 $1 &
 
-bash run_cifar100_v7.sh output 16 128 100 3000 128 sample s1 $1 &
-bash run_cifar100_v7.sh output 16 128 100 1000 128 sample s1 $1 &
+bash run_cifar100_v7.sh output 16 128 100 3000 128 sample s3 $1 &
+bash run_cifar100_v7.sh output 16 128 100 1000 128 sample s3 $1 &
 
 ### 
-bash run_cifar10_v3.sh output 64 128 100 3000 128 sample s1 $1 &
-bash run_cifar10_v3.sh output 64 128 100 1000 128 sample s1 $1 &
+bash run_cifar10_v3.sh output 64 128 100 3000 128 sample s2 $1 &
+bash run_cifar10_v3.sh output 64 128 100 1000 128 sample s2 $1 &
 
-bash run_cifar10_v3.sh output 16 128 100 3000 128 sample s1 $1 &
-bash run_cifar10_v3.sh output 16 128 100 1000 128 sample s1 $1 &
+bash run_cifar10_v3.sh output 16 128 100 3000 128 sample s3 $1 &
+bash run_cifar10_v3.sh output 16 128 100 1000 128 sample s3 $1 &
