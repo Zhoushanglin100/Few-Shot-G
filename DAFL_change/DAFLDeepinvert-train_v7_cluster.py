@@ -492,7 +492,7 @@ def main():
         teacher = torch.load(args.teacher_dir + 'teacher_acc_95.3').cuda()
     elif args.dataset == "cifar100":
         teacher = resnet.ResNet34(num_classes=100).cuda()
-        ckpt_teacher = torch.load("cache/pretrained/cifar100_resnet34.pth")
+        ckpt_teacher = torch.load("cache/pretrained/cifar100_resnet34.pth")    # 74.41%
         teacher.load_state_dict(ckpt_teacher['state_dict'])
     elif args.dataset == "tiny":
         teacher = resnet.ResNet34(num_classes=200).cuda()
