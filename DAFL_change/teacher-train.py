@@ -5,8 +5,8 @@
 #This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD 3-Clause License for more details.
 
 import os
-from DAFL_change.model.lenet import LeNet5
-import DAFL_change.resnet as resnet
+from model.lenet import LeNet5
+import resnet as resnet
 import torch
 from torch.autograd import Variable
 from torchvision.datasets.mnist import MNIST
