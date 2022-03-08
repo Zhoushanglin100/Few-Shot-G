@@ -1,11 +1,11 @@
 import os, random
-import resnet as resnet
+from model.resnet import *
+from model.vgg_block import vgg_stock, vgg_bw, cfgs, split_block
 import torch
 from torch.autograd import Variable
 import argparse
 
 from script import *
-import collections
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -25,6 +25,7 @@ parser = argparse.ArgumentParser(description='train-teacher-network')
 
 # Basic model parameters.
 parser.add_argument('--dataset', type=str, default='cifar10', choices=['MNIST','cifar10','cifar100', 'tiny'])
+parser.add_argument('-a', '--arch', metavar='ARCH', default='vgg16', choices=["resnet34", "vgg16"], help="teacher model")
 parser.add_argument('--data', type=str, default='cache/data/')
 parser.add_argument('--output_dir', type=str, default='cache/models/')
 parser.add_argument('--teacher_dir', type=str, default='cache/models/')
@@ -104,6 +105,8 @@ class DeepInversionFeatureHook():
         self.hook_type = args.hook_type
         self.stat_type = args.stat_type
         self.mean_layers = []
+
+        # print(self.mean_dict.keys(), self.var_dict.keys())
 
     def hook_fn(self, module, input, output):
 
@@ -264,13 +267,15 @@ def train_G(args, idx, net, generator, teacher, epoch,
         gen_imgs = generator(z)
 
         ### one-hot loss
-        outputs_T, features_T = teacher(gen_imgs, out_feature=True)
-
+        if args.arch == "resnet34":
+            outputs_T, features_T = teacher(gen_imgs, out_feature=True)
+        else:
+            outputs_T = teacher(gen_imgs)
         pred = outputs_T.data.max(1)[1]
-        loss_activation = -features_T.abs().mean()
         loss_one_hot = criterion(outputs_T,pred)
         softmax_o_T = torch.nn.functional.softmax(outputs_T, dim = 1).mean(dim = 0)
         loss_information_entropy = (softmax_o_T * torch.log10(softmax_o_T)).sum()
+        # loss_activation = -features_T.abs().mean()
         # loss = loss_one_hot * args.oh + loss_information_entropy * args.ie + loss_activation * args.a 
         
         ### KD loss
@@ -353,7 +358,11 @@ def train_S(args, net, G_list, teacher, epoch, optimizer_S):
         # print("======>>>", i, gen_imgs.shape)
         # exit(0)
 
-        outputs_T, features_T = teacher(gen_imgs, out_feature=True)
+        if args.arch == "resnet34":
+            outputs_T, features_T = teacher(gen_imgs, out_feature=True)
+        else:
+            outputs_T = teacher(gen_imgs)
+
         outputs_S, features_S = net(gen_imgs, out_feature=True)
         loss_kd = kdloss(outputs_S, outputs_T)
 
@@ -489,50 +498,48 @@ def main():
 
     # -----------------------------------------------
     if args.dataset == "cifar10":
-        teacher = torch.load(args.teacher_dir + 'teacher_acc_95.3').cuda()
+        if args.arch == "resnet34":
+            teacher = torch.load(args.teacher_dir + 'teacher_acc_95.3')
+        elif args.arch == "vgg16":
+            teacher = vgg_stock(cfgs['vgg16'], args.dataset, 10)
+            checkpoint = torch.load('cache/models/vgg16_CIFAR10_ckpt.pth')
+            teacher.load_state_dict(checkpoint['net'])
     elif args.dataset == "cifar100":
-        teacher = resnet.ResNet34(num_classes=100).cuda()
-        ckpt_teacher = torch.load("cache/pretrained/cifar100_resnet34.pth")    # 74.41%
-        teacher.load_state_dict(ckpt_teacher['state_dict'])
+        if args.arch == "resnet34":    
+            teacher = ResNet34(num_classes=100)
+            ckpt_teacher = torch.load("cache/pretrained/cifar100_resnet34.pth")    # 74.41%
+            teacher.load_state_dict(ckpt_teacher['state_dict'])
+        elif args.arch == "vgg16":
+            teacher = vgg_stock(cfgs['vgg16'], args.dataset, 100)
+            checkpoint = torch.load('cache/models/vgg16_CIFAR100_ckpt.pth')
+            teacher.load_state_dict(checkpoint['net'])
     elif args.dataset == "tiny":
-        teacher = resnet.ResNet34(num_classes=200).cuda()
+        teacher = ResNet34(num_classes=200)
         file_name = "cache/models/tinyimagenet_resnet34.pth"
         teacher.load_state_dict(torch.load(file_name))
     else:
         teacher = models.resnet34(pretrained=True)
 
-    teacher.eval()
+    teacher.cuda()
     teacher = nn.DataParallel(teacher)
     
-    # print("||||||||||||||")
-    # for name, module in teacher.named_modules():
-    #     print(name)
-    # print("||||||||||||||")
-    # exit(0)
-
     # -------------------------------------
-    save_path = 'cache/ckpts_'+args.dataset+'/multi_'+args.ext
+    save_path = 'cache/ckpts_'+args.dataset+"_"+args.arch+'/multi_'+args.ext
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
-    stat_path = "stats/stats_"+args.dataset+"/stats_multi_splz"+str(args.stat_bz)+"/"+args.hook_type
-
+    # stat_path = "stats/stats_"+args.dataset+"/stats_multi_splz"+str(args.stat_bz)+"/"+args.hook_type
+    stat_path = "stats/stats_"+args.dataset+"_"+args.arch+"/stats_multi_splz"+str(args.stat_bz)+"/"+args.hook_type
+    print(stat_path)
     n_divid = int(len(os.listdir(stat_path))/2)
     print("!!!!!!!!", n_divid, "!!!!!!!!!!!!!")
 
     # ------------------------------------------------
     ### train generator
-    # if start_epoch <= args.n_epochs_G:
     if args.train_G:
-
         # setting up the range for jitter
         lim_0, lim_1 = 2, 2
-
         n = int(n_divid)
-
-        # n = int(args.n_divid)
-        # total = int(args.total_class)
-        # num_classes = int(total/n)
 
         ### iteratively train generators
         for idx in range(0, n):
@@ -563,36 +570,33 @@ def main():
             optimizer_G = torch.optim.Adam(generator.parameters(), lr=args.lr_G)
             
             if args.dataset == 'cifar10':
-                ### Create dataset
-                # data_train_loader, data_test_loader = get_split_cifar10(args, args.batch_size, start_class, end_class)
-                net = resnet.ResNet18().cuda()
-                
+                net = ResNet18()
             elif args.dataset == 'cifar100':
-                net = resnet.ResNet18(num_classes=100).cuda()
-                
+                net = ResNet18(num_classes=100)
             elif args.dataset == 'tiny':
-                net = resnet.ResNet18(num_classes=200).cuda()
-            
-            
+                net = ResNet18(num_classes=200)
+    
+            net.cuda()
             optimizer_S = torch.optim.SGD(net.parameters(), lr=args.lr_S, momentum=0.9, weight_decay=5e-4)
 
             ### Create hooks for feature statistics catching
-            mean_layers_dictionary = torch.load(stat_path+"/mean_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
-            var_layers_dictionary = torch.load(stat_path+"/var_resnet34_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
+            mean_layers_dictionary = torch.load(stat_path+"/mean_"+args.arch+"_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
+            var_layers_dictionary = torch.load(stat_path+"/var_"+args.arch+"_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
 
-
+            # ----------------------------------------------------
             # print("\n||||||||||||||")
-            # for name, W in teacher.named_parameters():
-            #     if ('bn' in name) and ("weight" in name):
-            #         print(name, W.shape)
-
+            # for name_stat, module_stat in teacher.named_modules():
+            #     if (isinstance(module_stat, nn.BatchNorm2d) and (args.arch == "vgg16")) or ((args.arch == "resnet34") or ("bn" in name_stat) or ("downsample.1" in name_stat)):
+            #         print(name_stat)
+            # # print("------------------")
             # # for i in mean_layers_dictionary:
             # #     print(i, mean_layers_dictionary[i].shape, var_layers_dictionary[i].shape)
-
-            # # print("mean_layers_dictionary", mean_layers_dictionary.keys())
-            # # print("\nvar_layers_dictionary", var_layers_dictionary.keys())
+            # print("------------------")
+            # print("mean_layers_dictionary", mean_layers_dictionary.keys())
+            # print("\nvar_layers_dictionary", var_layers_dictionary.keys())
             # print("||||||||||||||\n")
-            # exit(0)
+           #  exit(0)
+            # ----------------------------------------------------
 
             mean_layers_dictionary = {f'module.{k}': v for k, v in mean_layers_dictionary.items()}
             var_layers_dictionary = {f'module.{k}': v for k, v in var_layers_dictionary.items()}
@@ -601,9 +605,9 @@ def main():
             name_layer = []
             for name, module in teacher.named_modules():
                 # if isinstance(module, nn.BatchNorm2d):
-                if ("bn" in name) or ("downsample.1" in name):
+                if (isinstance(module, nn.BatchNorm2d) and (args.arch == "vgg16")) or ((args.arch == "resnet34") or ("bn" in name) or ("downsample.1" in name)):
+                # if ("bn" in name) or ("downsample.1" in name):
                 # if name in mean_layers_dictionary.keys():
-                    # print("1111", name)
                     aa = DeepInversionFeatureHook(args, name, module, mean_layers_dictionary, var_layers_dictionary)
                     loss_r_feature_layers.append(aa)
                     name_layer.append(name)
@@ -656,21 +660,11 @@ def main():
             print(save_path+'/'+G_name)
             ckeckpoints = torch.load(save_path+'/'+G_name)
 
-            # tmp_G = {}
-            # for k, v in ckeckpoints['G_state_dict'].items():
-            #     new_k = k[7:]
-            #     tmp_G[new_k] = v
-            
-
-            # generator.load_state_dict(tmp_G)
             generator.load_state_dict(ckeckpoints['G_state_dict'])
             generator = nn.DataParallel(generator)
 
             generator.eval()
             G_list.append(generator)
-
-            # del tmp_G
-            # del ckeckpoints['G_state_dict']
 
         print(">>>>> Finish Loading Generators")
 
@@ -679,7 +673,7 @@ def main():
             print("!!!! CIFAR-10")
             _, data_test_loader = get_split_cifar10(args, args.batch_size, 0, 10)
 
-            net = resnet.ResNet18().cuda()
+            net = ResNet18().cuda()
             criterion = torch.nn.CrossEntropyLoss().cuda()
             optimizer_S = torch.optim.SGD(net.parameters(), lr=args.lr_S, momentum=0.9, weight_decay=5e-4)
 
@@ -687,7 +681,7 @@ def main():
             print("!!!! CIFAR-100")
             _, data_test_loader = get_split_cifar100(args, args.batch_size, 0, 100)
 
-            net = resnet.ResNet18(num_classes=100).cuda()
+            net = ResNet18(num_classes=100).cuda()
             criterion = torch.nn.CrossEntropyLoss().cuda()
             optimizer_S = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 
@@ -697,7 +691,7 @@ def main():
             _, data_test_loader = get_split_TinyImageNet(args, DATA_DIR, args.batch_size, 
                                                                     start_class, end_class)
 
-            net = resnet.ResNet18(num_classes=200).cuda()
+            net = ResNet18(num_classes=200).cuda()
             criterion = torch.nn.CrossEntropyLoss().cuda()
             optimizer_S = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 
@@ -727,7 +721,6 @@ def main():
             if args.dataset != 'MNIST':
                 adjust_learning_rate(args, optimizer_S, e)
 
-            # print("111111111")
             train_S(args, net, G_list, teacher, e, optimizer_S)
 
             # ### Checking student accuracy

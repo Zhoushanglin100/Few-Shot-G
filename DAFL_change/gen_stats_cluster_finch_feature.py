@@ -19,7 +19,8 @@ import torchvision.datasets as datasets
 import torchvision.models as models
 from kmeans_pytorch import kmeans, kmeans_predict
 
-import resnet
+from model.resnet import ResNet34
+from model.vgg_block import vgg_stock, vgg_bw, cfgs, split_block
 
 import collections
 from script import *
@@ -37,10 +38,10 @@ parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 
 parser.add_argument('--dataset', type=str, default='cifar10', 
                     choices=['MNIST','cifar10','cifar100', 'tiny'])
-parser.add_argument('--data-type', type=str, default='everyclass', 
+parser.add_argument('--data-type', type=str, default='sample', 
                     choices=['everyclass', 'sample'])
 parser.add_argument('--data', type=str, default='cache/data/')
-parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet34',
+parser.add_argument('-a', '--arch', metavar='ARCH', default='vgg16',
                     choices=model_names,
                     help='model architecture: ' +
                         ' | '.join(model_names) +
@@ -162,16 +163,28 @@ def main_worker(gpu, ngpus_per_node, args):
         # model = models.__dict__[args.arch](pretrained=True)
         if args.dataset == "cifar10":
             print("=> CIFAR10: using pre-trained model '{}'".format(args.arch))
-            model = torch.load(args.teacher_dir + 'teacher_acc_95.3')
+            if args.arch == "resnet34":
+                model = torch.load(args.teacher_dir + 'teacher_acc_95.3')
+            elif args.arch == "vgg16":
+                model = vgg_stock(cfgs['vgg16'], args.dataset, 10)
+                checkpoint = torch.load('cache/models/vgg16_CIFAR10_ckpt.pth')
+                model.load_state_dict(checkpoint['net'])
+                # model.load_state_dict(torch.load("cache/models/vgg16-blockwise-cifar10.pth"))
         elif args.dataset == "cifar100":
             print("=> CIFAR100: using pre-trained model '{}'".format(args.arch))
-            model = resnet.ResNet34(num_classes=100).cuda()
-            ckpt_teacher = torch.load("cache/pretrained/cifar100_resnet34.pth")
-            model.load_state_dict(ckpt_teacher['state_dict'])
+            if args.arch == "resnet34":
+                model = ResNet34(num_classes=100)
+                ckpt_teacher = torch.load("cache/pretrained/cifar100_resnet34.pth")
+                model.load_state_dict(ckpt_teacher['state_dict'])
+            elif args.arch == "vgg16":
+                model = vgg_stock(cfgs['vgg16'], args.dataset, 100)
+                checkpoint = torch.load('cache/models/vgg16_CIFAR100_ckpt.pth')
+                model.load_state_dict(checkpoint['net'])
+                # model.load_state_dict(torch.load("cache/models/vgg16-blockwise-cifar100.pth"))
         elif args.dataset == "tiny":
             print("=> Tiny: using pre-trained model resnet34")
             # print(file_name)
-            model = resnet.ResNet34(num_classes=200).cuda()
+            model = ResNet34(num_classes=200)
             file_name = "cache/models/tinyimagenet_resnet34.pth"
             model.load_state_dict(torch.load(file_name))
     else:
@@ -202,7 +215,7 @@ def main_worker(gpu, ngpus_per_node, args):
         # DataParallel will divide and allocate batch_size to all available GPUs
         if args.arch.startswith('alexnet') or args.arch.startswith('vgg'):
             print("444-1")
-            model.features = torch.nn.DataParallel(model.features)
+            # model.features = torch.nn.DataParallel(model.features)
             model.cuda()
         else:
             print("444-2")
@@ -238,18 +251,19 @@ def main_worker(gpu, ngpus_per_node, args):
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     # print(model)
-    # print("\n||||||||||||||")
-    # for name, W in model.named_parameters():
-    #     if ('bn' in name) and ("weight" in name):
-    #         print(name, W.shape)
-    # print("||||||||||||||\n")
+    print("\n||||||||||||||")
+    for name, W in model.named_parameters():
+        if ('weight' in name) and (len(W.shape) == 1):
+        # if isinstance(name, nn.BatchNorm2d):
+            print(name, W.shape)
+    print("||||||||||||||\n")
 
     cudnn.benchmark = True
     
     # #######################################################
-    # ### get stat of one batch --> store stat of BN
-    # ### check
-    # temp = torch.load("stats/stats_cifar10/stats_multi_splz_4_64/output/mean_resnet34_start-0_end-1.pth")
+    # ## get stat of one batch --> store stat of BN
+    # ## check
+    # temp = torch.load("stats/stats_cifar10_vgg16/stats_multi_splz100/output/var_vgg16_start-0_end-1.pth")
     # for i in temp:
     #     print(i, temp[i].shape)
     # exit(0)
@@ -438,9 +452,11 @@ def train(args, train_loader, model, criterion, optimizer, epoch, start_class, e
         var_layers.append(var)
 
     for name_stat, module_stat in model.named_modules():
-        # if isinstance(module_stat, nn.BatchNorm2d):
-        if ("bn" in name_stat) or ("downsample.1" in name_stat):
+        # print(module_stat)
+        if (isinstance(module_stat, nn.BatchNorm2d) and (args.arch == "vgg16")) or ((args.arch == "resnet34") or ("bn" in name_stat) or ("downsample.1" in name_stat)):
+        # if ("bn" in name_stat) or ("downsample.1" in name_stat):
         #if isinstance(module_stat,nn.Conv2d): 
+            # print(name_stat)
             module_stat.register_forward_hook(hook_fn_forward)
             name_layers.append(name_stat)
     # ----------------------------------------
@@ -477,7 +493,8 @@ def train(args, train_loader, model, criterion, optimizer, epoch, start_class, e
         # print(mean_layers_dictionary.keys())
 
         ### save generated statistics
-        save_path = "stats/stats_"+args.dataset+"/stats_multi_splz"+str(args.batch_size)+"/"+args.hook_type
+        # save_path = "stats/stats_"+args.dataset+"/stats_multi_splz"+str(args.stat_bz)+"/"+args.hook_type
+        save_path = "stats/stats_"+args.dataset+"_"+args.arch+"/stats_multi_splz"+str(args.batch_size)+"/"+args.hook_type
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         torch.save(mean_layers_dictionary, save_path+"/mean_"+args.arch+"_"+"start-"+str(start_class)+"_end-"+str(end_class)+".pth")
@@ -504,7 +521,10 @@ def validate(val_loader, model, args):
                 nonlocal res5c_input
                 res5c_output = output
                 res5c_input = input_
-            model.linear.register_forward_hook(res5c_hook)
+            if args.arch == "resnet34":
+                model.linear.register_forward_hook(res5c_hook)
+            elif args.arch == "vgg16":
+                model.classifier.register_forward_hook(res5c_hook)
             # ------------------------
             ### compute output (must have for hook) 
             output = model(images)
