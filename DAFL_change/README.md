@@ -13,7 +13,7 @@
 
 ## N generators for N classes
 
-- Download model, rename folder to "cache/"
+- Download model, rename folder to "cache/models"
   - [GoogleDrive](https://drive.google.com/drive/folders/1L94fyrLCpbGFLQi5Q94_1MdYJp6Tb0kI?usp=sharing)
     ```
     ├─ DAFLDeepinvert-train_v6_tmp.py
