@@ -70,12 +70,23 @@
 # bash run_cifar10_v3.sh output 16 128 100 1000 128 sample s3 $1 &
 
 
-# -------------------------------
-bash run_cifar10_v3.sh output 100 128 100 3000 128 sample s1 $1 &
-bash run_cifar10_v3.sh output 50 128 100 3000 128 sample s1 $1 &
-bash run_cifar10_v3.sh output 10 128 100 3000 128 sample s1 $1 &
+##########################################################
 
-bash run_cifar100_v7.sh output 1000 128 100 3000 128 sample s1 $1 &
-bash run_cifar100_v7.sh output 500 128 100 3000 128 sample s1 $1 &
-bash run_cifar100_v7.sh output 100 128 100 3000 128 sample s1 $1 &
-bash run_cifar100_v7.sh output 64 128 100 3000 128 sample s1 $1 &
+# bash run_cifar10_v3.sh output 100 128 100 3000 128 sample s1 $1 &
+bash run_cifar10_v3.sh output 50 128 100 3000 128 sample s2 $1 &
+# bash run_cifar10_v3.sh output 10 128 100 3000 128 sample s1 $1 &
+
+#xx bash run_cifar100_v7.sh output 1000 128 100 3000 128 sample s1 $1 &
+bash run_cifar100_v7.sh output 500 128 100 3000 128 sample s2 $1 &
+# bash run_cifar100_v7.sh output 100 128 100 3000 128 sample s1 $1 &
+bash run_cifar100_v7.sh output 64 128 100 3000 128 sample s2 $1 &
+
+# -------------------------------
+
+bash run_cifar10_v3.sh output 10 128 100 3000 128 everyclass s1 $1 &
+bash run_cifar10_v3.sh output 5 128 100 3000 128 everyclass s1 $1 &
+bash run_cifar10_v3.sh output 1 128 100 3000 128 everyclass s1 $1 &
+
+bash run_cifar100_v7.sh output 10 128 100 3000 128 everyclass s1 $1 &
+bash run_cifar100_v7.sh output 5 128 100 3000 128 everyclass s1 $1 &
+bash run_cifar100_v7.sh output 1 128 100 3000 128 everyclass s1 $1 &

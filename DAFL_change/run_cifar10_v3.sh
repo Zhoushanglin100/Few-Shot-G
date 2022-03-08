@@ -22,9 +22,13 @@ elif [ "$step" = "s3" ]; then
     export flag_s3=1
 fi
 
-export partion=$9
+if [ "$data_type" = "sample" ]; then
+    export ext=NC_Smp${sample_batch}_${hook_type}_R${lambda_s}_ld${latent_dim}_Gbz${train_G_bz}_Sbz${train_S_bz}
+elif [ "$data_type" = "sample" ]; then
+    export ext=${data_type}_Smp${sample_batch}_${hook_type}_R${lambda_s}_ld${latent_dim}_Gbz${train_G_bz}_Sbz${train_S_bz}
+fi
 
-export ext=NC_Smp${sample_batch}_${hook_type}_R${lambda_s}_ld${latent_dim}_Gbz${train_G_bz}_Sbz${train_S_bz}
+export partion=$9
 
 
 if [ "$flag_s1" = "1" ]; then 
