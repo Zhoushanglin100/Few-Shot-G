@@ -77,9 +77,9 @@ print("-----------------------------")
 
 if has_wandb:
     if args.train_G:
-        id = "FS-{}-trainG-{}".format(args.dataset, args.ext)
+        id = "FS-{}{}-trainG-{}".format(args.dataset, args.arch, args.ext)
     if args.train_S:
-        id = "FS-{}-trainS-{}".format(args.dataset, args.ext)
+        id = "FS-{}{}-trainS-{}".format(args.dataset, args.arch, args.ext)
     # if "asimov" in os.environ["$HOSTNAME"]:
     wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
     # else:
