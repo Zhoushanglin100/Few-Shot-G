@@ -71,22 +71,46 @@
 
 
 ##########################################################
-
-# bash run_cifar10_v3.sh output 100 128 100 3000 128 sample s1 $1 &
-bash run_cifar10_v3.sh output 50 128 100 3000 128 sample s2 $1 &
-# bash run_cifar10_v3.sh output 10 128 100 3000 128 sample s1 $1 &
-
-#xx bash run_cifar100_v7.sh output 1000 128 100 3000 128 sample s1 $1 &
-bash run_cifar100_v7.sh output 500 128 100 3000 128 sample s2 $1 &
-# bash run_cifar100_v7.sh output 100 128 100 3000 128 sample s1 $1 &
-bash run_cifar100_v7.sh output 64 128 100 3000 128 sample s2 $1 &
+## start from 03/08
 
 # -------------------------------
+## sample student = resnet18
+bash run_cifar10_v3.sh output 100 128 100 3000 128 sample resnet s3 $1 &
+bash run_cifar10_v3.sh output 50 128 100 3000 128 sample resnet s3 $1 &
+bash run_cifar10_v3.sh output 10 128 100 3000 128 sample resnet s3 $1 &
 
-bash run_cifar10_v3.sh output 10 128 100 3000 128 everyclass s1 $1 &
-bash run_cifar10_v3.sh output 5 128 100 3000 128 everyclass s1 $1 &
-bash run_cifar10_v3.sh output 1 128 100 3000 128 everyclass s1 $1 &
+#x bash run_cifar100_v7.sh output 1000 128 100 3000 128 sample s1 $1 &
+# bash run_cifar100_v7.sh output 500 128 100 3000 128 sample resnet s2 $1 &
+bash run_cifar100_v7.sh output 100 128 100 3000 128 sample resnet s3 $1 &
+# bash run_cifar100_v7.sh output 64 128 100 3000 128 sample resnet s2 $1 &
 
-bash run_cifar100_v7.sh output 10 128 100 3000 128 everyclass s1 $1 &
-bash run_cifar100_v7.sh output 5 128 100 3000 128 everyclass s1 $1 &
-bash run_cifar100_v7.sh output 1 128 100 3000 128 everyclass s1 $1 &
+# -------------------------------
+## everyclass, student = resnet18
+# bash run_cifar10_v3.sh output 10 128 100 3000 128 everyclass resnet s2 $1 &
+# bash run_cifar10_v3.sh output 5 128 100 3000 128 everyclass resnet s2 $1 &
+bash run_cifar10_v3.sh output 1 128 100 3000 128 everyclass resnet s3 $1 &
+
+#x bash run_cifar100_v7.sh output 10 128 100 3000 128 everyclass resnet s2 $1 &
+#x bash run_cifar100_v7.sh output 5 128 100 3000 128 everyclass resnet s2 $1 &
+bash run_cifar100_v7.sh output 1 128 100 3000 128 everyclass resnet s3 $1 &
+
+# -------------------------------
+## sample, student = vgg-half
+bash run_cifar10_v3.sh output 100 128 100 3000 128 sample vgg s3 $1 &
+bash run_cifar10_v3.sh output 50 128 100 3000 128 sample vgg s3 $1 &
+bash run_cifar10_v3.sh output 10 128 100 3000 128 sample vgg s3 $1 &
+
+#x bash run_cifar100_v7.sh output 1000 128 100 3000 128 sample vgg s1 $1 &
+bash run_cifar100_v7.sh output 500 128 100 3000 128 sample vgg s3 $1 &
+bash run_cifar100_v7.sh output 100 128 100 3000 128 sample vgg s3 $1 &
+bash run_cifar100_v7.sh output 64 128 100 3000 128 sample vgg s3 $1 &
+
+# -------------------------------
+## everyclass, student = vgg-half
+bash run_cifar10_v3.sh output 10 128 100 3000 128 everyclass vgg s3 $1 &
+bash run_cifar10_v3.sh output 5 128 100 3000 128 everyclass vgg s3 $1 &
+bash run_cifar10_v3.sh output 1 128 100 3000 128 everyclass vgg s3 $1 &
+
+#x bash run_cifar100_v7.sh output 10 128 100 3000 128 everyclass vgg s3 $1 &
+#x bash run_cifar100_v7.sh output 5 128 100 3000 128 everyclass vgg s3 $1 &
+bash run_cifar100_v7.sh output 1 128 100 3000 128 everyclass vgg s3 $1 &

@@ -4,10 +4,10 @@ export train_G_bz=$3
 export lambda_s=$4
 export latent_dim=$5
 export train_S_bz=$6
-
 export data_type=$7
+export arch_s=$8
+export step=$9
 
-export step=$8
 if [ "$step" = "s1" ]; then 
     export flag_s1=1
     export flag_s2=1
@@ -28,7 +28,7 @@ elif [ "$data_type" = "everyclass" ]; then
     export ext=${data_type}_Smp${sample_batch}_${hook_type}_R${lambda_s}_ld${latent_dim}_Gbz${train_G_bz}_Sbz${train_S_bz}
 fi
 
-export partion=$9
+export partion=$10
 
 
 if [ "$flag_s1" = "1" ]; then 
@@ -61,6 +61,7 @@ if [ "$flag_s3" = "1" ]; then
                                         --fix_G \
                                         --train_S \
                                         --n_epochs 2000 \
+                                        --arch_s $arch_s \
                                         --stat_bz $sample_batch \
                                         --batch_size $train_S_bz \
                                         --lr_S 0.06 \

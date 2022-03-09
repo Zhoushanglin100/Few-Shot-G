@@ -26,6 +26,7 @@ parser = argparse.ArgumentParser(description='train-teacher-network')
 # Basic model parameters.
 parser.add_argument('--dataset', type=str, default='cifar10', choices=['MNIST','cifar10','cifar100', 'tiny'])
 parser.add_argument('-a', '--arch', metavar='ARCH', default='vgg16', choices=["resnet34", "vgg16"], help="teacher model")
+parser.add_argument('-a_s', '--arch_s', metavar='ARCH', default='resnet', choices=["resnet", "vgg"], help="student model")
 parser.add_argument('--data', type=str, default='cache/data/')
 parser.add_argument('--output_dir', type=str, default='cache/models/')
 parser.add_argument('--teacher_dir', type=str, default='cache/models/')
@@ -37,9 +38,6 @@ parser.add_argument('--train_G', action='store_true', default=False,
                     help='whether to train multiple generators')
 parser.add_argument('--train_S', action='store_true', default=False,
                     help='whether to train student')
-
-# parser.add_argument('--n_divid', type=int, default=5, help='number of division of dataset')
-# parser.add_argument('--total_class', type=int, default=10, help='total number of classes of dataset')
 
 parser.add_argument('--n_epochs_G', type=int, default=50, help='number of epochs of training generator')
 parser.add_argument('--n_epochs', type=int, default=2000, help='number of epochs of training total')
@@ -79,7 +77,10 @@ if has_wandb:
     if args.train_G:
         id = "FS-{}{}-trainG-{}".format(args.dataset, args.arch, args.ext)
     if args.train_S:
-        id = "FS-{}{}-trainS-{}".format(args.dataset, args.arch, args.ext)
+        if args.arch_s == "resnet":
+            id = "FS-{}{}-trainS-{}".format(args.dataset, args.arch, args.ext)
+        elif args.arch_s == "vgg":
+            id = "FS-{}{}{}-trainS-{}".format(args.dataset, args.arch, args.ext)
     # if "asimov" in os.environ["$HOSTNAME"]:
     wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
     # else:
@@ -279,7 +280,10 @@ def train_G(args, idx, net, generator, teacher, epoch,
         # loss = loss_one_hot * args.oh + loss_information_entropy * args.ie + loss_activation * args.a 
         
         ### KD loss
-        outputs_S, features_S = net(gen_imgs, out_feature=True)
+        if args.arch_s == "resnet":
+            outputs_S, features_S = net(gen_imgs, out_feature=True)
+        else:
+            outputs_S = net(gen_imgs)
         loss_kd = kdloss(outputs_S, outputs_T)
 
         ### from deepinversion: variation loss
@@ -363,7 +367,10 @@ def train_S(args, net, G_list, teacher, epoch, optimizer_S):
         else:
             outputs_T = teacher(gen_imgs)
 
-        outputs_S, features_S = net(gen_imgs, out_feature=True)
+        if args.arch_s == "resnet":
+            outputs_S, features_S = net(gen_imgs, out_feature=True)
+        else:
+            outputs_S = net(gen_imgs)
         loss_kd = kdloss(outputs_S, outputs_T)
 
         ### only train student after n_epochs_G epochs
@@ -570,9 +577,15 @@ def main():
             optimizer_G = torch.optim.Adam(generator.parameters(), lr=args.lr_G)
             
             if args.dataset == 'cifar10':
-                net = ResNet18()
+                if args.arch_s == "resnet":
+                    net = ResNet18()
+                elif args.arch_s == "vgg":
+                    net = vgg_bw(cfgs['vgg16-graft'], True, args.dataset, 10)
             elif args.dataset == 'cifar100':
-                net = ResNet18(num_classes=100)
+                if args.arch_s == "resnet":
+                    net = ResNet18(num_classes=100)
+                elif args.arch_s == "vgg":
+                    net = vgg_bw(cfgs['vgg16-graft'], True, args.dataset, 100)
             elif args.dataset == 'tiny':
                 net = ResNet18(num_classes=200)
     
@@ -672,16 +685,22 @@ def main():
         if args.dataset == 'cifar10':
             print("!!!! CIFAR-10")
             _, data_test_loader = get_split_cifar10(args, args.batch_size, 0, 10)
-
-            net = ResNet18().cuda()
+            if args.arch_s == "resnet":
+                net = ResNet18()
+            elif args.arch_s == "vgg":
+                net = vgg_bw(cfgs['vgg16-graft'], True, args.dataset, 10)
+            net.cuda()
             criterion = torch.nn.CrossEntropyLoss().cuda()
             optimizer_S = torch.optim.SGD(net.parameters(), lr=args.lr_S, momentum=0.9, weight_decay=5e-4)
 
         if args.dataset == 'cifar100':
             print("!!!! CIFAR-100")
             _, data_test_loader = get_split_cifar100(args, args.batch_size, 0, 100)
-
-            net = ResNet18(num_classes=100).cuda()
+            if args.arch_s == "resnet":
+                net = ResNet18(num_classes=100)
+            elif args.arch_s == "vgg":
+                net = vgg_bw(cfgs['vgg16-graft'], True, args.dataset, 100)
+            net.cuda()
             criterion = torch.nn.CrossEntropyLoss().cuda()
             optimizer_S = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 
@@ -690,17 +709,22 @@ def main():
             DATA_DIR = "/data/tiny-imagenet-200"
             _, data_test_loader = get_split_TinyImageNet(args, DATA_DIR, args.batch_size, 
                                                                     start_class, end_class)
-
             net = ResNet18(num_classes=200).cuda()
             criterion = torch.nn.CrossEntropyLoss().cuda()
             optimizer_S = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 
         # ------------------------------------------------
         if args.resume:
-            load_name = "{}_trainS_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.dataset,
-                                                                                args.fix_G, args.latent_dim,
-                                                                                args.n_epochs, args.n_epochs_G,
-                                                                                args.lr_G, args.lr_S)
+            if args.arch_s == "resnet":
+                load_name = "{}_trainS_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.dataset,
+                                                                                    args.fix_G, args.latent_dim,
+                                                                                    args.n_epochs, args.n_epochs_G,
+                                                                                    args.lr_G, args.lr_S)
+            elif args.arch_s == "vgg":
+                load_name = "{}{}_trainS_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.dataset, args.arch_s,
+                                                                                    args.fix_G, args.latent_dim,
+                                                                                    args.n_epochs, args.n_epochs_G,
+                                                                                    args.lr_G, args.lr_S)
             print("!!!! RESUME !!!!")
             if os.path.exists(save_path+'/'+load_name):
                 checkpoint = torch.load(save_path+'/'+load_name)
@@ -729,10 +753,16 @@ def main():
 
             #### save student model
             # print("-------> Model saved!!")
-            save_name = "{}_trainS_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.dataset, 
-                                                                                args.fix_G, args.latent_dim,
-                                                                                args.n_epochs, args.n_epochs_G,
-                                                                                args.lr_G, args.lr_S)
+            if args.arch_s == "resnet":
+                save_name = "{}_trainS_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.dataset,
+                                                                                    args.fix_G, args.latent_dim,
+                                                                                    args.n_epochs, args.n_epochs_G,
+                                                                                    args.lr_G, args.lr_S)
+            elif args.arch_s == "vgg":
+                save_name = "{}{}_trainS_{}_ld{}_eN{}_eG{}_lrG{}_lrS{}.pth".format(args.dataset, args.arch_s,
+                                                                                    args.fix_G, args.latent_dim,
+                                                                                    args.n_epochs, args.n_epochs_G,
+                                                                                    args.lr_G, args.lr_S)
             torch.save({'epoch': e,
                         'S_state_dict': net.module.state_dict(),
                         'S_optimizer_state_dict': optimizer_S.state_dict()},
