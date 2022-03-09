@@ -80,7 +80,7 @@ if has_wandb:
         if args.arch_s == "resnet":
             id = "FS-{}{}-trainS-{}".format(args.dataset, args.arch, args.ext)
         elif args.arch_s == "vgg":
-            id = "FS-{}{}{}-trainS-{}".format(args.dataset, args.arch, args.ext)
+            id = "FS-{}{}{}-trainS-{}".format(args.dataset, args.arch, args.arch_s, args.ext)
     # if "asimov" in os.environ["$HOSTNAME"]:
     wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
     # else:
