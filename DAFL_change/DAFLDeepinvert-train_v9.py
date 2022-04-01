@@ -81,9 +81,9 @@ print("-----------------------------")
 
 if has_wandb:
     if args.train_G:
-        id = f"FS-{args.dataset}{args.arch}-trainG-{args.ext}"
+        id = f"New-{args.dataset}{args.arch}-trainG-{args.ext}"
     if args.train_S:
-        id = f"img32-FS-{args.dataset}{args.arch}{args.arch_s}-trainS-r{args.r}lrS{args.lr_S}bz{args.batch_size}-{args.ext}"
+        id = f"New-img32-{args.dataset}{args.arch}{args.arch_s}-trainS-r{args.r}lrS{args.lr_S}bz{args.batch_size}-{args.ext}"
     # if "asimov" in os.environ["$HOSTNAME"]:
     wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
     # else:
@@ -261,9 +261,9 @@ def train_G(args, idx, net, generator, teacher, epoch,
     net.train()
     loss = None
 
-    # for i in range(500):
+    for i in range(500):
     # for i in range(200):
-    for i in range(3):
+    # for i in range(3):
 
         z = Variable(torch.randn(args.batch_size, args.latent_dim)).cuda()
 
@@ -311,17 +311,26 @@ def train_G(args, idx, net, generator, teacher, epoch,
         loss += (6e-3 * loss_var)
         loss += (1.5e-5 * torch.norm(gen_imgs, 2))  # l2 loss
         loss += int(args.lambda_s)*loss_distr                 # best for noise before BN
-        if i % 50 == 0:
+
+        if i % 100 == 0:
             print('Train G_%d, Epoch %d, Batch: %d, Loss: %f' % (idx, epoch, i, loss.data.item()))
 
-        if has_wandb:
-            wandb.log({"loss_G/OneHot_Loss_"+str(idx): loss_one_hot.item()})
-            wandb.log({"loss_G/KD_Loss_S_"+str(idx): loss_kd.item()})
-            wandb.log({"loss_G/Var_Loss_"+str(idx): loss_var.item()})
-            # wandb.log({"loss_G/R_Loss_"+str(idx): loss_distr.item()})
-            wandb.log({"loss_G/R_Loss_"+str(idx): loss_distr})
-            wandb.log({"loss_G/L2_Loss_"+str(idx): torch.norm(gen_imgs, 2).item()})
-            wandb.log({"G_perf/total_loss_"+str(idx): loss.data.item()})
+            if has_wandb:
+                loss_dict = {"loss_G/OneHot_Loss_"+str(idx): loss_one_hot.item(), 
+                             "loss_G/KD_Loss_S_"+str(idx): loss_kd.item(),
+                             "loss_G/Var_Loss_"+str(idx): loss_var.item(),
+                             "loss_G/R_Loss_"+str(idx): loss_distr,
+                             "loss_G/L2_Loss_"+str(idx): torch.norm(gen_imgs, 2).item(),
+                             "G_perf/total_loss_"+str(idx): loss.data.item()}
+                wandb.log(loss_dict, step=i)
+
+                # wandb.log({"loss_G/OneHot_Loss_"+str(idx): loss_one_hot.item()}, step=i)
+                # wandb.log({"loss_G/KD_Loss_S_"+str(idx): loss_kd.item()}, step=i)
+                # wandb.log({"loss_G/Var_Loss_"+str(idx): loss_var.item()}, step=i)
+                # # wandb.log({"loss_G/R_Loss_"+str(idx): loss_distr.item()})
+                # wandb.log({"loss_G/R_Loss_"+str(idx): loss_distr}, step=i)
+                # wandb.log({"loss_G/L2_Loss_"+str(idx): torch.norm(gen_imgs, 2).item()}, step=i)
+                # wandb.log({"G_perf/total_loss_"+str(idx): loss.data.item()}, step=i)
 
         loss.backward()
         optimizer_G.step()
@@ -360,11 +369,10 @@ def Check_train_S(args, net, data_train_loader, teacher, epoch, optimizer_S):
         else:
             print("To-Do")
 
-        if has_wandb:
-            wandb.log({"check_total_loss_S": loss.item()})
-
         if i % 100 == 0:
             print('Student Train - Epoch %d, Batch: %d, Loss: %f' % (epoch, i, loss.data.item()))
+            if has_wandb:
+                wandb.log({"check_total_loss_S": loss.item()}, step=i)
 
         loss.backward()
         optimizer_S.step()
@@ -429,12 +437,10 @@ def train_S(args, net, G_list, teacher, epoch, optimizer_S, imagenet_train_loade
             #     loss = loss + loss_distr                          # best for noise before BN
             # loss = loss + loss_kd
 
-        if has_wandb:
-            wandb.log({"total_loss_S": loss.item()})
-
         if batch_idx % 100 == 0:
             print('Student Train - Epoch %d, Batch: %d, Loss: %f' % (epoch, batch_idx, loss.data.item()))
-
+            if has_wandb:
+                wandb.log({"total_loss_S": loss.item()}, step=batch_idx)
         loss.backward()
         optimizer_S.step()
         
@@ -462,8 +468,7 @@ def test(args, net, data_test_loader, criterion):
     print('\n|||| Test Avg. Loss: %f, Accuracy: %f' % (avg_loss.data.item(), acc))
     
     if has_wandb:
-        wandb.log({"test_loss": avg_loss.data.item()})
-        wandb.log({"test_acc": acc})
+        wandb.log({"test_loss": avg_loss.data.item(), "test_acc": acc})
 
 
 # ------------------------------------
