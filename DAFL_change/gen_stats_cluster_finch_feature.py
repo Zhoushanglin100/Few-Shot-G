@@ -50,7 +50,7 @@ parser.add_argument('--hook-type', type=str, default='output', choices=['input',
                     help = "hook statistics from input data or output data")
 parser.add_argument('--thrd', '--cluster-threshold', default=20, type=int, metavar='N',
                     help='maximum number of generators can train')
-parser.add_argument('--stat-layer', type=str, default='multi', 
+parser.add_argument('--stat-layer', type=str, default='all', 
                     choices=['multi', 'single', 'convbn', "all"])
 
 parser.add_argument('--teacher-dir', type=str, default='cache/models/')
@@ -382,17 +382,10 @@ def main_worker(gpu, ngpus_per_node, args):
     #     print(acc)
     # # ------------------------------------
 
-    # cluster_ids, num_clusters = [g for g in enumerate(num_clust) if g[1] < args.thrd][0]
-    num_clusters = num_clust[-1]
-    cluster_ids = len(num_clust)-1
-
+    cluster_ids, num_clusters = [g for g in enumerate(num_clust) if g[1] < args.thrd][0]
     cluster_ids_train = torch.tensor(c[:, cluster_ids])
-    print("\nFINCH, choose #cluster=", num_clusters, "\n")
 
-    print(feature_loader.dataset.tensors[1])
-    from collections import Counter
-    c = Counter(feature_loader.dataset.tensors[1].tolist())
-    print(c)
+    print("\nFINCH, choose #cluster=", num_clusters, "\n")
 
     # ---------------------------------
     ### cluster
