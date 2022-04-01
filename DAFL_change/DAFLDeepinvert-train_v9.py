@@ -261,7 +261,8 @@ def train_G(args, idx, net, generator, teacher, epoch,
     net.train()
     loss = None
 
-    for i in range(500):
+    num_itr = 500
+    for i in range(num_itr):
     # for i in range(200):
     # for i in range(3):
 
@@ -321,8 +322,9 @@ def train_G(args, idx, net, generator, teacher, epoch,
                              "loss_G/Var_Loss_"+str(idx): loss_var.item(),
                              "loss_G/R_Loss_"+str(idx): loss_distr,
                              "loss_G/L2_Loss_"+str(idx): torch.norm(gen_imgs, 2).item(),
-                             "G_perf/total_loss_"+str(idx): loss.data.item()}
-                wandb.log(loss_dict, step=i)
+                             "G_perf/total_loss_"+str(idx): loss.data.item()
+                            }
+                wandb.log(loss_dict, step=i+epoch*500)
 
                 # wandb.log({"loss_G/OneHot_Loss_"+str(idx): loss_one_hot.item()}, step=i)
                 # wandb.log({"loss_G/KD_Loss_S_"+str(idx): loss_kd.item()}, step=i)
@@ -372,7 +374,7 @@ def Check_train_S(args, net, data_train_loader, teacher, epoch, optimizer_S):
         if i % 100 == 0:
             print('Student Train - Epoch %d, Batch: %d, Loss: %f' % (epoch, i, loss.data.item()))
             if has_wandb:
-                wandb.log({"check_total_loss_S": loss.item()}, step=i)
+                wandb.log({"check_total_loss_S": loss.item()}, step=i+epoch*len(data_train_loader))
 
         loss.backward()
         optimizer_S.step()
@@ -390,8 +392,9 @@ def train_S(args, net, G_list, teacher, epoch, optimizer_S, imagenet_train_loade
     # for i in range(500):
     # for i in range(200):
     # for i in range(5):
+    num_itr = 500
     for batch_idx, (imagenet_input, _) in enumerate(imagenet_train_loader):
-        if batch_idx > 500:
+        if batch_idx > num_itr:
             break
 
         imagenet_input = imagenet_input.cuda()
@@ -440,7 +443,7 @@ def train_S(args, net, G_list, teacher, epoch, optimizer_S, imagenet_train_loade
         if batch_idx % 100 == 0:
             print('Student Train - Epoch %d, Batch: %d, Loss: %f' % (epoch, batch_idx, loss.data.item()))
             if has_wandb:
-                wandb.log({"total_loss_S": loss.item()}, step=batch_idx)
+                wandb.log({"total_loss_S": loss.item()}, step=batch_idx+epoch*num_itr)
         loss.backward()
         optimizer_S.step()
         
