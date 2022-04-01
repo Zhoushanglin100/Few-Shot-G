@@ -40,8 +40,8 @@ if [ "$flag_s2" = "1" ]; then
                                         --dataset cifar10 \
                                         --fix_G \
                                         --train_G \
-                                        --n_epochs_G 3 \
-                                        --lr_G 0.001 \
+                                        --n_epochs_G 100 \
+                                        --lr_G 0.01 \
                                         --stat_bz $sample_batch \
                                         --batch_size $train_G_bz \
                                         --hook_type $hook_type \
@@ -55,8 +55,8 @@ if [ "$flag_s3" = "1" ]; then
                                         --fix_G \
                                         --train_S \
                                         --n_epochs 2000 \
+                                        --arch 
                                         --arch_s $arch_s \
-                                        --stat_bz $sample_batch \
                                         --batch_size $train_S_bz \
                                         --lr_S 0.06 \
                                         --hook_type $hook_type \
@@ -64,3 +64,11 @@ if [ "$flag_s3" = "1" ]; then
                                         --resume \
                                         --ext $ext
 fi
+
+
+
+CUDA_VISIBLE_DEVICES=2 python3 gen_stats_cluster_finch_feature.py --pretrained --dataset cifar10 --data-type sample --batch-size 10 --stat-layer all
+
+CUDA_VISIBLE_DEVICES=5 python3 DAFLDeepinvert-train_v7_cluster.py --dataset cifar10 --fix_G --train_G --n_epochs_G 100 --lr_G 0.1 --latent_dim 5000 --stat_bz 100 --stat_layer all --ext allNORMsz100ld5000lr0.1itr500
+
+python3 DAFLDeepinvert-train_v7_cluster.py --dataset cifar10 --fix_G --train_S --n_epochs 2000 -a vgg16 --arch_s vgg --batch_size $train_S_bz --lr_S 0.06 --hook_type $hook_type --stat_bz $sample_batch --latent_dim $latent_dim --resume --ext $ext

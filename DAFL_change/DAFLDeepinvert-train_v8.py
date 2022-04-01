@@ -149,45 +149,219 @@ class DeepInversionFeatureHook():
         self.hook.remove()
 
 
-# ------------------------------------------------
-### add gen
+# # ------------------------------------------------
+# ### add gen
+
+# ## DCGAN transconv v1
+# class Generator(nn.Module):
+#     def __init__(self):
+#         super(Generator, self).__init__()
+
+#         nz = args.latent_dim
+#         ngf = args.img_size
+#         nc = args.channels
+
+#         self.init_size = args.img_size // 4
+#         n_nodes = 128 * self.init_size**2
+#         self.l1 = nn.Sequential(nn.Linear(args.latent_dim, n_nodes))
+
+#         self.main0 = nn.Sequential(
+#             nn.BatchNorm2d(128),
+#         )
+#         # input is Z, going into a convolution
+#         self.main1 = nn.Sequential(
+#             nn.ConvTranspose2d(128, ngf * 8, 3, 1, 1, bias=False),
+#             nn.BatchNorm2d(ngf * 8),
+#             nn.ReLU(True)
+#         )
+#         # state size. (ngf*8) x 4 x 4
+#         self.main2 = nn.Sequential(
+#             nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
+#             nn.BatchNorm2d(ngf * 4),
+#             nn.ReLU(True)
+#         )
+#         # state size. (ngf*4) x 8 x 8
+#         self.main3 = nn.Sequential(
+#             nn.ConvTranspose2d(ngf * 4, ngf * 2, 3, 1, 1, bias=False),
+#             nn.BatchNorm2d(ngf * 2),
+#             nn.ReLU(True)
+#         )
+#         # state size. (ngf*2) x 16 x 16
+#         self.main4 = nn.Sequential(
+#             nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),
+#             nn.BatchNorm2d(ngf),
+#             nn.ReLU(True)
+#         )
+#         # state size. (ngf) x 32 x 32
+#         self.main5 = nn.Sequential(
+#             nn.ConvTranspose2d(ngf,     nc, 3, 1, 1, bias=False),
+#             nn.Tanh()
+#             # state size. (nc) x 64 x 64
+#         )
+#         self.main6 = nn.Sequential(
+#             nn.BatchNorm2d(nc),
+#         )
+
+#     def forward(self, z):
+#         out = self.l1(z)
+#         out = out.view(out.shape[0], 128, self.init_size, self.init_size)
+#         out = self.main0(out)
+#         output = self.main1(out)
+#         output = self.main2(output)
+#         output = self.main3(output)
+#         output = self.main4(output)
+#         output = self.main5(output)
+#         img = self.main6(output)
+#         return img
+
+# ## DCGAN transconv v2
+# class Generator(nn.Module):
+#     def __init__(self):
+#         super(Generator, self).__init__()
+
+#         nz = args.latent_dim
+#         ngf = args.img_size
+#         nc = args.channels
+
+#         self.main1 = nn.Sequential(
+#             # input is Z, going into a convolution
+#             nn.ConvTranspose2d(nz,     ngf * 8, 4, 1, 0, bias=False),
+#             nn.BatchNorm2d(ngf * 8),
+#             nn.ReLU(True)
+#         )
+#         self.main2 = nn.Sequential(
+#             # state size. (ngf*8) x 4 x 4
+#             nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
+#             nn.BatchNorm2d(ngf * 4),
+#             nn.ReLU(True)
+#         )
+#         self.main3 = nn.Sequential(
+#             # state size. (ngf*4) x 8 x 8
+#             nn.ConvTranspose2d(ngf * 4, ngf * 2, 3, 1, 1, bias=False),
+#             nn.BatchNorm2d(ngf * 2),
+#             nn.ReLU(True)
+#         )
+#             # state size. (ngf*2) x 16 x 16
+#         self.main4 = nn.Sequential(
+#             nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),
+#             nn.BatchNorm2d(ngf),
+#             nn.ReLU(True)
+#         )
+#             # state size. (ngf) x 32 x 32
+#         self.main5 = nn.Sequential(
+#             nn.ConvTranspose2d(ngf,     nc, 4, 2, 1, bias=False),
+#             nn.Tanh()
+#             # state size. (nc) x 64 x 64
+#         )
+
+#     def forward(self, input):
+#         output = input.view(input.shape[0], input.shape[1], 1, 1)
+#         output = self.main1(output)
+#         output = self.main2(output)
+#         output = self.main3(output)
+#         output = self.main4(output)
+#         output = self.main5(output)
+
+#         return output
+
+# GAN
 class Generator(nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
 
-        self.init_size = args.img_size // 4
-        self.l1 = nn.Sequential(nn.Linear(args.latent_dim, 128*self.init_size**2))
+        self.img_shape = (args.channels, args.img_size, args.img_size)
 
-        self.conv_blocks0 = nn.Sequential(
-            nn.BatchNorm2d(128),
-        )
-        self.conv_blocks1 = nn.Sequential(
-            nn.Conv2d(128, 128, 3, stride=1, padding=1),
-            # nn.BatchNorm2d(128, 0.8),
-            nn.BatchNorm2d(128),
-            nn.LeakyReLU(0.2, inplace=True),
-        )
-        self.conv_blocks2 = nn.Sequential(
-            nn.Conv2d(128, 64, 3, stride=1, padding=1),
-            # nn.BatchNorm2d(64, 0.8),
-            nn.BatchNorm2d(64),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(64, args.channels, 3, stride=1, padding=1),
-            nn.Tanh(),
-            nn.BatchNorm2d(args.channels, affine=False)
+        def block(in_feat, out_feat, normalize=True):
+            layers = [nn.Linear(in_feat, out_feat)]
+            if normalize:
+                layers.append(nn.BatchNorm1d(out_feat, 0.8))
+            layers.append(nn.LeakyReLU(0.2, inplace=True))
+            return layers
+
+        self.model = nn.Sequential(
+            *block(args.latent_dim, 128, normalize=False),
+            *block(128, 256),
+            *block(256, 512),
+            *block(512, 1024),
+            nn.Linear(1024, int(np.prod(self.img_shape))),
+            nn.Tanh()
         )
 
     def forward(self, z):
-        out = self.l1(z)
-        out = out.view(out.shape[0], 128, self.init_size, self.init_size)
-        img = self.conv_blocks0(out)
-        img = nn.functional.interpolate(img,scale_factor=2)
-        img = self.conv_blocks1(img)
-        img = nn.functional.interpolate(img,scale_factor=2)
-        img = self.conv_blocks2(img)
-        
+        img = self.model(z)
+        img = img.view(img.size(0), *self.img_shape)
         return img
-    
+
+## DCGAN 1
+# class Generator(nn.Module):
+#     def __init__(self):
+#         super(Generator, self).__init__()
+
+#         self.init_size = args.img_size // 4
+#         self.l1 = nn.Sequential(nn.Linear(args.latent_dim, 128*self.init_size**2))
+
+#         self.conv_blocks0 = nn.Sequential(
+#             nn.BatchNorm2d(128),
+#         )
+#         self.conv_blocks1 = nn.Sequential(
+#             nn.Conv2d(128, 128, 3, stride=1, padding=1),
+#             nn.BatchNorm2d(128, 0.8),
+#             # nn.BatchNorm2d(128),
+#             nn.LeakyReLU(0.2, inplace=True),
+#         )
+#         self.conv_blocks2 = nn.Sequential(
+#             nn.Conv2d(128, 64, 3, stride=1, padding=1),
+#             nn.BatchNorm2d(64, 0.8),
+#             # nn.BatchNorm2d(64),
+#             nn.LeakyReLU(0.2, inplace=True),
+#             nn.Conv2d(64, args.channels, 3, stride=1, padding=1),
+#             nn.Tanh(),
+#             nn.BatchNorm2d(args.channels, affine=False)
+#         )
+
+#     def forward(self, z):
+#         out = self.l1(z)
+#         out = out.view(out.shape[0], 128, self.init_size, self.init_size)
+#         img = self.conv_blocks0(out)
+#         img = nn.functional.interpolate(img,scale_factor=2)
+#         img = self.conv_blocks1(img)
+#         img = nn.functional.interpolate(img,scale_factor=2)
+#         img = self.conv_blocks2(img)
+        
+#         return img
+
+## DCGAN 2
+# class Generator(nn.Module):
+#     def __init__(self):
+#         super(Generator, self).__init__()
+
+#         self.init_size = args.img_size // 4
+#         self.l1 = nn.Sequential(nn.Linear(args.latent_dim, 128 * self.init_size ** 2))
+
+#         self.conv_blocks = nn.Sequential(
+#             nn.BatchNorm2d(128),
+#             nn.Upsample(scale_factor=2),
+#             nn.Conv2d(128, 128, 3, stride=1, padding=1),
+#             nn.BatchNorm2d(128, 0.8),
+#             nn.LeakyReLU(0.2, inplace=True),
+#             nn.Upsample(scale_factor=2),
+#             nn.Conv2d(128, 64, 3, stride=1, padding=1),
+#             nn.BatchNorm2d(64, 0.8),
+#             nn.LeakyReLU(0.2, inplace=True),
+#             nn.Conv2d(64, args.channels, 3, stride=1, padding=1),
+#             nn.Tanh(),
+#             nn.BatchNorm2d(args.channels, affine=False)
+#         )
+
+#     def forward(self, z):
+#         out = self.l1(z)
+#         out = out.view(out.shape[0], 128, self.init_size, self.init_size)
+#         img = self.conv_blocks(out)
+#         return img
+
+
+
+
 # ------------------------------------------------
 ### adjust learning rate
 
@@ -264,7 +438,6 @@ def train_G(args, idx, net, generator, teacher, epoch,
         z = Variable(torch.randn(args.batch_size, args.latent_dim)).cuda()
 
         optimizer_G.zero_grad()
-
         gen_imgs = generator(z)
 
         ### one-hot loss
@@ -298,7 +471,9 @@ def train_G(args, idx, net, generator, teacher, epoch,
         diff3 = gen_imgs[:,:,1:,:-1] - gen_imgs[:,:,:-1,1:]
         diff4 = gen_imgs[:,:,:-1,:-1] - gen_imgs[:,:,1:,1:]
         loss_var = torch.norm(diff1) + torch.norm(diff2) + torch.norm(diff3) + torch.norm(diff4)
-
+        loss_var_l1 = (diff1.abs()/255.0).mean() + (diff2.abs()/255.0).mean() + (diff3.abs()/255.0).mean() + (diff4.abs()/255.0).mean()
+        loss_var_l1 = loss_var_l1 * 255.0
+        
         ### R_feature loss
         loss_distr = sum([mod.r_feature for mod in loss_r_feature_layers])
 

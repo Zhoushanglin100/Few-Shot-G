@@ -17,7 +17,7 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
-from kmeans_pytorch import kmeans, kmeans_predict
+# from kmeans_pytorch import kmeans, kmeans_predict
 
 from model.resnet import ResNet34
 from model.vgg_block import vgg_stock, vgg_bw, cfgs, split_block
@@ -50,7 +50,8 @@ parser.add_argument('--hook-type', type=str, default='output', choices=['input',
                     help = "hook statistics from input data or output data")
 parser.add_argument('--thrd', '--cluster-threshold', default=20, type=int, metavar='N',
                     help='maximum number of generators can train')
-parser.add_argument('--ext', type=str, default='')
+parser.add_argument('--stat-layer', type=str, default='multi', 
+                    choices=['multi', 'single', 'convbn', "all"])
 
 parser.add_argument('--teacher-dir', type=str, default='cache/models/')
 
@@ -251,21 +252,29 @@ def main_worker(gpu, ngpus_per_node, args):
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     # print(model)
-    print("\n||||||||||||||")
-    for name, W in model.named_parameters():
-        if ('weight' in name) and (len(W.shape) == 1):
-        # if isinstance(name, nn.BatchNorm2d):
-            print(name, W.shape)
-    print("||||||||||||||\n")
+    # print("\n||||||||||||||")
+    # for name, W in model.named_parameters():
+    #     if 'weight' in name:
+    #     # if isinstance(name, nn.BatchNorm2d) or (isinstance(name, nn.Conv2d)):
+    #         print(name, W.shape)
+    # print("||||||||||||||\n")
+    # exit(0)
+    # for name_stat, module_stat in model.named_modules():
+    #     if isinstance(module_stat,nn.Conv2d) or isinstance(module_stat,nn.BatchNorm2d) or isinstance(module_stat,nn.BatchNorm1d): 
+    #         print(name_stat)
 
     cudnn.benchmark = True
     
     # #######################################################
-    # ## get stat of one batch --> store stat of BN
-    # ## check
-    # temp = torch.load("stats/stats_cifar10_vgg16/stats_multi_splz100/output/var_vgg16_start-0_end-1.pth")
+    # # get stat of one batch --> store stat of BN
+    # # check
+    # if args.arch == "vgg16":
+    #     temp = torch.load("stats/stats_cifar10_vgg16/stats_all_multi_sample_splz10/output/var_vgg16_start-0_end-1.pth")
+    # elif args.arch == "resnet34":
+    #     temp = torch.load("stats/stats_cifar10_resnet34/stats_multi_sample_splz10/output/mean_resnet34_start-0_end-1.pth")
     # for i in temp:
     #     print(i, temp[i].shape)
+    #     # print(temp[i])
     # exit(0)
     # #######################################################
 
@@ -373,10 +382,17 @@ def main_worker(gpu, ngpus_per_node, args):
     #     print(acc)
     # # ------------------------------------
 
-    cluster_ids, num_clusters = [g for g in enumerate(num_clust) if g[1] < args.thrd][0]
-    cluster_ids_train = torch.tensor(c[:, cluster_ids])
+    # cluster_ids, num_clusters = [g for g in enumerate(num_clust) if g[1] < args.thrd][0]
+    num_clusters = num_clust[-1]
+    cluster_ids = len(num_clust)-1
 
+    cluster_ids_train = torch.tensor(c[:, cluster_ids])
     print("\nFINCH, choose #cluster=", num_clusters, "\n")
+
+    print(feature_loader.dataset.tensors[1])
+    from collections import Counter
+    c = Counter(feature_loader.dataset.tensors[1].tolist())
+    print(c)
 
     # ---------------------------------
     ### cluster
@@ -440,23 +456,34 @@ def train(args, train_loader, model, criterion, optimizer, epoch, start_class, e
     # ----------------------------------------
     name_layers = []
     def hook_fn_forward(module, input, output):
+        
         if args.hook_type == "output":
-            nch = output.shape[1]
-            mean = output.mean([0,2,3]).cpu().detach()
-            var = output.permute(1, 0, 2, 3).contiguous().view([nch, -1]).var(1, unbiased=False).cpu().detach()
-        elif args.hook_type == "input":   
-            nch = input[0].shape[1]
-            mean = input[0].mean([0, 2, 3]).cpu().detach()
-            var = input[0].permute(1, 0, 2, 3).contiguous().view([nch, -1]).var(1, unbiased=False).cpu().detach()    
+            feature_map = output
+        elif args.hook_type == "input":
+            feature_map = input[0]
+        # print("---->", feature_map.shape)
+
+        nch = feature_map.shape[1]
+        if len(feature_map.shape) == 4:
+            mean = feature_map.mean([0,2,3]).cpu().detach()
+            var = feature_map.permute(1, 0, 2, 3).contiguous().view([nch, -1]).var(1, unbiased=False).cpu().detach()
+        elif len(feature_map.shape) == 2:
+            mean = feature_map.mean([0]).cpu().detach()
+            var = feature_map.permute(1, 0).contiguous().view([nch, -1]).var(1, unbiased=False).cpu().detach()
+ 
         mean_layers.append(mean)
         var_layers.append(var)
 
     for name_stat, module_stat in model.named_modules():
+
         # print(module_stat)
-        if (isinstance(module_stat, nn.BatchNorm2d) and (args.arch == "vgg16")) or ((args.arch == "resnet34") or ("bn" in name_stat) or ("downsample.1" in name_stat)):
+        # if ((isinstance(module_stat, nn.BatchNorm2d) or isinstance(module_stat, nn.BatchNorm1d)) and (args.arch == "vgg16")) or ((args.arch == "resnet34") or ("bn" in name_stat) or ("downsample.1" in name_stat)):
         # if ("bn" in name_stat) or ("downsample.1" in name_stat):
-        #if isinstance(module_stat,nn.Conv2d): 
-            # print(name_stat)
+        # if isinstance(module_stat,nn.Conv2d) or isinstance(module_stat,nn.BatchNorm2d): 
+        if (args.stat_layer == "all") and (isinstance(module_stat,nn.Conv2d) or isinstance(module_stat,nn.BatchNorm2d) or isinstance(module_stat,nn.BatchNorm1d) or ("classifier.0" in name_stat)) \
+            or (args.stat_layer == "convbn") and (isinstance(module_stat,nn.Conv2d) or isinstance(module_stat,nn.BatchNorm2d)) \
+            or (args.stat_layer == "multi" or args.stat_layer == "single") and isinstance(module_stat,nn.Conv2d): 
+            # print("--->", name_stat)
             module_stat.register_forward_hook(hook_fn_forward)
             name_layers.append(name_stat)
     # ----------------------------------------
@@ -493,8 +520,14 @@ def train(args, train_loader, model, criterion, optimizer, epoch, start_class, e
         # print(mean_layers_dictionary.keys())
 
         ### save generated statistics
-        # save_path = "stats/stats_"+args.dataset+"/stats_multi_splz"+str(args.stat_bz)+"/"+args.hook_type
-        save_path = "stats/stats_"+args.dataset+"_"+args.arch+"/stats_multi_splz"+str(args.batch_size)+"/"+args.hook_type
+        if args.stat_layer == "multi":
+            save_path = "stats/stats_"+args.dataset+"_"+args.arch+"/stats_multi_"+args.data_type+"_splz"+str(args.batch_size)+"/"+args.hook_type
+        elif args.stat_layer == "single":
+            save_path = "stats/stats_"+args.dataset+"_"+args.arch+"/stats_single_"+args.data_type+"_splz"+str(args.batch_size)+"/"+args.hook_type
+        elif args.stat_layer == "convbn":
+            save_path = "stats/stats_"+args.dataset+"_"+args.arch+"/stats_CBN_multi_"+args.data_type+"_splz"+str(args.batch_size)+"/"+args.hook_type
+        elif args.stat_layer == "all":
+            save_path = "stats/stats_"+args.dataset+"_"+args.arch+"/stats_all_multi_"+args.data_type+"_splz"+str(args.batch_size)+"/"+args.hook_type
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         torch.save(mean_layers_dictionary, save_path+"/mean_"+args.arch+"_"+"start-"+str(start_class)+"_end-"+str(end_class)+".pth")

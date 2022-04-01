@@ -28,6 +28,10 @@ parser.add_argument('--dataset', type=str, default='cifar10', choices=['MNIST','
 parser.add_argument('-a', '--arch', metavar='ARCH', default='vgg16', choices=["resnet34", "vgg16"], help="teacher model")
 parser.add_argument('-a_s', '--arch_s', metavar='ARCH', default='vgg', choices=["resnet", "vgg"], help="student model")
 parser.add_argument('--data', type=str, default='cache/data/')
+
+parser.add_argument('--imagenet_path', type=str, default='/data/imagenet/')
+parser.add_argument('--r', type=float, default=0.5, help='use gen threshold ratio, 1 all gan')
+
 parser.add_argument('--output_dir', type=str, default='cache/models/')
 parser.add_argument('--teacher_dir', type=str, default='cache/models/')
 parser.add_argument('--ext', type=str, default='')
@@ -50,7 +54,7 @@ parser.add_argument('--hook_type', type=str, default='output', choices=['input',
 parser.add_argument('--stat_type', type=str, default='extract', choices=['running', 'extract'],
                     help = "statistics from self extracted from a batch or saved stats from teacher")
 parser.add_argument('--stat_bz', type=int, default=1, help='size of the batches')
-parser.add_argument('--stat_layer', type=str, default='multi', choices=['multi', 'single', 'convbn', "all"])
+parser.add_argument('--stat_layer', type=str, default='all', choices=['multi', 'single', 'convbn', "all"])
 parser.add_argument('--data_type', type=str, default='sample', choices=['everyclass', 'sample'])
 
 parser.add_argument('--batch_size', type=int, default=128, help='size of the batches')
@@ -77,13 +81,13 @@ print("-----------------------------")
 
 if has_wandb:
     if args.train_G:
-        id = "FS-{}{}-trainG-{}".format(args.dataset, args.arch, args.ext)
+        id = f"FS-{args.dataset}{args.arch}-trainG-{args.ext}"
     if args.train_S:
-        id = "FS-{}{}{}-trainS-{}".format(args.dataset, args.arch, args.arch_s, args.ext)
+        id = f"img32-FS-{args.dataset}{args.arch}{args.arch_s}-trainS-r{args.r}lrS{args.lr_S}bz{args.batch_size}-{args.ext}"
     # if "asimov" in os.environ["$HOSTNAME"]:
-    # wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
+    wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
     # else:
-    wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)#, resume="allow", id=id)
+    # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)#, resume="allow", id=id)
     wandb.config.update(args)
 
 # ------------------------------------------------
@@ -163,14 +167,14 @@ class Generator(nn.Module):
         )
         self.conv_blocks1 = nn.Sequential(
             nn.Conv2d(128, 128, 3, stride=1, padding=1),
-            # nn.BatchNorm2d(128, 0.8),
-            nn.BatchNorm2d(128),
+            nn.BatchNorm2d(128, 0.8),
+            # nn.BatchNorm2d(128),
             nn.LeakyReLU(0.2, inplace=True),
         )
         self.conv_blocks2 = nn.Sequential(
             nn.Conv2d(128, 64, 3, stride=1, padding=1),
-            # nn.BatchNorm2d(64, 0.8),
-            nn.BatchNorm2d(64),
+            nn.BatchNorm2d(64, 0.8),
+            # nn.BatchNorm2d(64),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(64, args.channels, 3, stride=1, padding=1),
             nn.Tanh(),
@@ -239,7 +243,7 @@ def adjust_learning_rate_G(args, optimizer, epoch):
 def kdloss(y, teacher_scores):
     p = F.log_softmax(y, dim=1)
     q = F.softmax(teacher_scores, dim=1)
-    l_kl = F.kl_div(p, q, size_average=False)  / y.shape[0]
+    l_kl = F.kl_div(p, q, reduction='sum')  / y.shape[0]
     return l_kl
 
 ######################################################
@@ -257,9 +261,9 @@ def train_G(args, idx, net, generator, teacher, epoch,
     net.train()
     loss = None
 
-    for i in range(500):
+    # for i in range(500):
     # for i in range(200):
-    # for i in range(3):
+    for i in range(3):
 
         z = Variable(torch.randn(args.batch_size, args.latent_dim)).cuda()
 
@@ -367,7 +371,7 @@ def Check_train_S(args, net, data_train_loader, teacher, epoch, optimizer_S):
 
 
 
-def train_S(args, net, G_list, teacher, epoch, optimizer_S):
+def train_S(args, net, G_list, teacher, epoch, optimizer_S, imagenet_train_loader):
     print("\n>>>>> Train Student <<<<<")
 
     if args.dataset != 'MNIST':
@@ -375,23 +379,31 @@ def train_S(args, net, G_list, teacher, epoch, optimizer_S):
     
     net.train()
 
-    for i in range(500):
+    # for i in range(500):
     # for i in range(200):
     # for i in range(5):
+    for batch_idx, (imagenet_input, _) in enumerate(imagenet_train_loader):
+        if batch_idx > 500:
+            break
+
+        imagenet_input = imagenet_input.cuda()
 
         loss_total = None
         optimizer_S.zero_grad()
 
-        for gidx, generator in enumerate(G_list):
-            generator = generator.cuda()
+        if torch.rand(1).item() > args.r:
+            gen_imgs = imagenet_input
+        else:
+            for gidx, generator in enumerate(G_list):
+                generator = generator.cuda()
 
-            ### KD loss
-            z = Variable(torch.randn(args.batch_size, args.latent_dim)).cuda()
-            gen_imgs_gid = generator(z)
-            if gidx == 0:
-                gen_imgs = gen_imgs_gid
-            else:
-                gen_imgs = torch.cat((gen_imgs, gen_imgs_gid), 0)
+                ### KD loss
+                z = Variable(torch.randn(args.batch_size, args.latent_dim)).cuda()
+                gen_imgs_gid = generator(z)
+                if gidx == 0:
+                    gen_imgs = gen_imgs_gid
+                else:
+                    gen_imgs = torch.cat((gen_imgs, gen_imgs_gid), 0)
 
         if args.arch == "resnet34":
             outputs_T, features_T = teacher(gen_imgs, out_feature=True)
@@ -420,8 +432,8 @@ def train_S(args, net, G_list, teacher, epoch, optimizer_S):
         if has_wandb:
             wandb.log({"total_loss_S": loss.item()})
 
-        if i % 100 == 0:
-            print('Student Train - Epoch %d, Batch: %d, Loss: %f' % (epoch, i, loss.data.item()))
+        if batch_idx % 100 == 0:
+            print('Student Train - Epoch %d, Batch: %d, Loss: %f' % (epoch, batch_idx, loss.data.item()))
 
         loss.backward()
         optimizer_S.step()
@@ -582,14 +594,14 @@ def main():
             print("\n !!!!! start_class: "+str(start_class)+" end_class: "+str(end_class))
 
             # ---------------
-            # # ### way to resume generator
+            ### way to resume generator
             save_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
 
             if os.path.exists(save_path+"/"+save_name):
                 ckeckpoints = torch.load(save_path+"/"+save_name)
                 if ckeckpoints["epoch"] == args.n_epochs_G:
                     print("Generate exits!!", save_name)
-                    del ckeckpoints
+
                     continue
                     
             # ------------------------------------------------
@@ -669,7 +681,10 @@ def main():
                             'G_optimizer_state_dict':optimizer_G.state_dict()}, 
                             save_path+"/"+save_name)
 
-            del generator
+            # ------------------------------------------------
+            for aa in loss_r_feature_layers:
+                aa.close()
+            torch.cuda.empty_cache()
 
     # ------------------------------------------------
     ### train student
@@ -718,7 +733,7 @@ def main():
             print("!!!! CIFAR-10")
             # _, data_test_loader = get_split_cifar10(args, args.batch_size, 0, 10)
             trainset = torchvision.datasets.CIFAR10(args.data, train=True, download=True, transform=transform_train)
-            data_train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=8)
+            data_train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=4)
             testset = torchvision.datasets.CIFAR10(args.data, train=False, download=True, transform=transform_test)
             data_test_loader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
             if args.arch_s == "resnet":
@@ -729,7 +744,7 @@ def main():
             print("!!!! CIFAR-100")
             # _, data_test_loader = get_split_cifar100(args, args.batch_size, 0, 100)
             trainset = torchvision.datasets.CIFAR100(args.data, train=True, download=True, transform=transform_train)
-            data_train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=8)
+            data_train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=4)
             testset = torchvision.datasets.CIFAR100(args.data, train=False, download=True, transform=transform_test)
             data_test_loader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
             if args.arch_s == "resnet":
@@ -747,7 +762,8 @@ def main():
         # scheduler = torch.optim.lr_scheduler.LinearLR(optimizer_S, start_factor=args.lr_S, total_iters=int(args.n_epochs-args.n_epochs_G))
 
         # ------------------------------------------------
-        save_name = "S500_{}{}_trainS_ld{}_eN{}_eG{}_lrG{}_lrS{}wp10_dcy{}_lambda{}.pth".format(args.dataset, args.arch_s,
+        save_name = "imgNet_{}{}_{}_trainS_ld{}_eN{}_eG{}_lrG{}_lrS{}wp10_dcy{}_lambda{}.pth".format(args.dataset, args.arch_s,
+                                                                            args.r, 
                                                                             args.latent_dim,
                                                                             args.n_epochs, args.n_epochs_G,
                                                                             args.lr_G, args.lr_S,
@@ -771,8 +787,24 @@ def main():
             if has_wandb:
                 wandb.log({"epoch": e})
 
+            # ------------------------------------------------
+            ### load imagenet for random sample
+            imgnet_traindir = os.path.join(args.imagenet_path, 'train')
+            imgnet_normalize = torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            imagenet_train_loader = torch.utils.data.DataLoader(torchvision.datasets.ImageFolder(imgnet_traindir, 
+                                                            torchvision.transforms.Compose([
+                                                                # torchvision.transforms.RandomResizedCrop(32),
+                                                                torchvision.transforms.Resize(size = (32,32)),
+                                                                torchvision.transforms.RandomHorizontalFlip(),
+                                                                torchvision.transforms.ToTensor(),
+                                                                imgnet_normalize,
+                                                            ])),
+                                                        batch_size=args.batch_size, shuffle=True,
+                                                        num_workers=4, pin_memory=True)
+            # ------------------------------------------------
+
             # Check_train_S(args, net, data_train_loader, teacher, e, optimizer_S)
-            train_S(args, net, G_list, teacher, e, optimizer_S)
+            train_S(args, net, G_list, teacher, e, optimizer_S, imagenet_train_loader)
             # scheduler.step()
 
             #### save student model
