@@ -56,7 +56,9 @@ def get_teacher(args):
     print(f"Dataset: {args.dataset}, teacher: {args.arch}")
     if args.dataset == "cifar10":
         if args.arch == "resnet34":
-            teacher = torch.load(args.teacher_dir + 'teacher_acc_95.3')
+            # teacher = torch.load(args.teacher_dir + 'teacher_acc_95.3')
+            teacher = ResNet34(num_classes=10)
+            teacher.load_state_dict(torch.load(args.teacher_dir + "cifar10_resnet34_95.3.pth"))
         elif args.arch == "vgg16":
             teacher = vgg_stock(cfgs['vgg16'], args.dataset, 10)
             checkpoint = torch.load(args.teacher_dir + 'vgg16_CIFAR10_ckpt.pth')
@@ -116,7 +118,7 @@ def load(load_path, model, optimizer, scheduler):
     return epoch, model, optimizer, scheduler
 
 
-class generator_info():
+class GeneratorInfo():
     def __init__(self, num_G, load_path, batch_size, latent_dim, img_size, channels):
         self.num_G = num_G
         self.load_path = load_path

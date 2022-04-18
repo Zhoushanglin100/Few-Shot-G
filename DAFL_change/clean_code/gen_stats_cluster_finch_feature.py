@@ -21,6 +21,7 @@ import torchvision.models as models
 
 from model.resnet import ResNet34
 from model.vgg_block import vgg_stock, vgg_bw, cfgs, split_block
+import model.resnet
 
 import collections
 from script import *
@@ -165,7 +166,8 @@ def main_worker(gpu, ngpus_per_node, args):
         if args.dataset == "cifar10":
             print("=> CIFAR10: using pre-trained model '{}'".format(args.arch))
             if args.arch == "resnet34":
-                model = torch.load(args.teacher_dir + 'teacher_acc_95.3')
+                model = ResNet34(num_classes=10)
+                model.load_state_dict(torch.load(args.teacher_dir + "cifar10_resnet34_95.3.pth"))
             elif args.arch == "vgg16":
                 model = vgg_stock(cfgs['vgg16'], args.dataset, 10)
                 checkpoint = torch.load(args.teacher_dir + 'vgg16_CIFAR10_ckpt.pth')

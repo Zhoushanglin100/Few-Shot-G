@@ -133,6 +133,6 @@ def eval(net, dataloader, criterion, log_func=print):
             total_len += labels.size(0)
     avg_loss /= len(dataloader)
     acc = float(total_correct) / total_len
-    print('\n|||| Test Avg. Loss: %f, Accuracy: %f' % (avg_loss.data.item(), acc))
+    print('\n|||| Test Avg. Loss: %f, Accuracy: %f \n' % (avg_loss.data.item(), acc))
     log_func({"test_loss": avg_loss.data.item(), "test_acc": acc})
 

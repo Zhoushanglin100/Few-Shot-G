@@ -31,9 +31,9 @@ bash run_local.sh a s3 10 resnet34 resnet $G_bz $S_bz 10 $latent_dim 0.1 0.01 $r
 bash run_local.sh a s3 50 resnet34 resnet $G_bz $S_bz 10 $latent_dim 0.1 0.01 $ratio /data/imagenet/
 bash run_local.sh a s3 100 resnet34 resnet $G_bz $S_bz 10 $latent_dim 0.1 0.01 $ratio /data/imagenet/
 
-bash run_local.sh a s3 10 vhh16 vgg $G_bz $S_bz 10 $latent_dim 0.1 0.01 $ratio /data/imagenet/
-bash run_local.sh a s3 50 vhh16 vgg $G_bz $S_bz 10 $latent_dim 0.1 0.01 $ratio /data/imagenet/
-bash run_local.sh a s3 100 vhh16 vgg $G_bz $S_bz 10 $latent_dim 0.1 0.01 $ratio /data/imagenet/
+bash run_local.sh a s3 10 vgg16 vgg $G_bz $S_bz 10 $latent_dim 0.1 0.01 $ratio /data/imagenet/
+bash run_local.sh a s3 50 vgg16 vgg $G_bz $S_bz 10 $latent_dim 0.1 0.01 $ratio /data/imagenet/
+bash run_local.sh a s3 100 vgg16 vgg $G_bz $S_bz 10 $latent_dim 0.1 0.01 $ratio /data/imagenet/
 
 bash run_local.sh a s3 10 vgg16 resnet $G_bz $S_bz 10 $latent_dim 0.1 0.01 $ratio /data/imagenet/
 bash run_local.sh a s3 50 vgg16 resnet $G_bz $S_bz 10 $latent_dim 0.1 0.01 $ratio /data/imagenet/

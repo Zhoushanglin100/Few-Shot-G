@@ -106,7 +106,7 @@ def main():
         num_G = int(len(os.listdir(stat_path))/2)
 
         ### load student and generator
-        gen_info = utils.generator_info(num_G, args.save_path, 
+        gen_info = utils.GeneratorInfo(num_G, args.save_path, 
                                          args.batch_size, args.latent_dim, 
                                          args.img_size, args.channels)
         # G_list = gen_info.get_generators()        
