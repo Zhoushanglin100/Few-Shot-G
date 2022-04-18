@@ -133,7 +133,7 @@ def main():
                                                                                         args.lambda_s)
         save_path = args.save_path + '/' + save_name
 
-        if args.resume:
+        if args.resume and os.path.exists(save_path):
             print("!!!! RESUME !!!!")
             start_epoch, student, optimizer, scheduler = utils.load(save_path, student, optimizer, scheduler)
 
