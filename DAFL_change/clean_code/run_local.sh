@@ -69,7 +69,6 @@ if [ "$flag_s2" = "1" ]; then
                                             --lambda_s $lambda_s \
                                             --latent_dim $latent_dim \
                                             --Gindex $idx \
-                                            --disable_wandb \
                                             --ext $ext &
     done
 fi

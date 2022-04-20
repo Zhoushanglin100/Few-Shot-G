@@ -72,7 +72,6 @@ def get_args():
 
     args = parser.parse_args()
 
-
     args.save_path = cache_path + '/ckpts_'+args.dataset+"_"+args.arch+'/multi_'+args.ext
     if not os.path.exists(args.save_path):
         os.makedirs(args.save_path)
@@ -84,14 +83,14 @@ def get_args():
 def set_logger(args):
     if has_wandb and not args.disable_wandb:
         if args.train_G:
-            id = f"D-trainG-{args.dataset}{args.arch}-bz{args.batch_size}-{args.ext}"
+            id = f"D-trainG-{args.dataset}{args.arch}-bz{args.batch_size}-{args.Gindex}-{args.ext}"
         if args.train_S:
             id = f"D-trainS-{args.dataset}{args.arch}{args.arch_s}-r{args.ratio}lrS{args.lr_S}bz{args.batch_size}-{args.ext}"
         
         # if "asimov" in os.environ["$HOSTNAME"]:
-        # wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
+        wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
         # else:
-        wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)
+        # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args, id=id, resume="allow")
         wandb.config.update(args)
         log_func = wandb.log
     

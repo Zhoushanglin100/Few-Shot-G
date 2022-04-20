@@ -10,59 +10,6 @@ import utils
 import trainer
 import data
 
-def generator_train(args, idx, teacher, stat_path, start_epoch, lim_0, lim_1, save_name):
-    start_class = idx
-    end_class = idx+1
-    print("\n !!!!! start_class: "+str(start_class)+" end_class: "+str(end_class))
-    
-    generator = models.Generator(latent_dim=args.latent_dim, img_size=args.img_size).cuda()
-    generator = nn.DataParallel(generator)
-
-    ### optimization
-    criterion = torch.nn.CrossEntropyLoss().cuda()
-    optimizer_G = torch.optim.Adam(generator.parameters(), lr=args.lr_G)
-    scheduler_G = utils.GeneratorLR(optimizer_G)
-
-    ### load student
-    net = utils.get_student(args)
-    net.cuda()
-    # optimizer_S = torch.optim.SGD(net.parameters(), lr=args.lr_S, momentum=0.9, weight_decay=5e-4)
-
-    ### Create hooks for feature statistics catching
-    mean_layers_dictionary = torch.load(stat_path+"/mean_"+args.arch+"_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
-    var_layers_dictionary = torch.load(stat_path+"/var_"+args.arch+"_start-"+str(start_class)+"_end-"+str(end_class)+".pth")
-
-    mean_layers_dictionary = {f'module.{k}': v for k, v in mean_layers_dictionary.items()}
-    var_layers_dictionary = {f'module.{k}': v for k, v in var_layers_dictionary.items()}
-
-    loss_r_feature_layers = []
-    name_layer = []
-    for name, module in teacher.named_modules():
-        if name in mean_layers_dictionary.keys():
-            layers = models.DeepInversionFeatureHook(args.hook_type, args.stat_type, name, module, mean_layers_dictionary, var_layers_dictionary)
-            loss_r_feature_layers.append(layers)
-            name_layer.append(name)
-
-    ### start training generator
-    for e in range(start_epoch, args.n_epochs_G+1):
-
-        trainer.train_G(args, idx, net, generator, teacher, e, 
-                        optimizer_G, scheduler_G, criterion, 
-                        lim_0, lim_1,
-                        loss_r_feature_layers)
-    
-        torch.save({'epoch': e,
-                    'G_state_dict': generator.module.state_dict(),
-                    'G_optimizer_state_dict':optimizer_G.state_dict()}, 
-                    args.save_path+"/"+save_name)
-
-    # ------------------------------------------------
-    for layers in loss_r_feature_layers:
-        layers.close()
-    torch.cuda.empty_cache()
-
-
-
 def main():
 
     # set up
