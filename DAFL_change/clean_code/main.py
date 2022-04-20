@@ -118,7 +118,7 @@ def main():
         student = utils.get_student(args).cuda()
 
         ### load training data
-        imagenet_dataloader = data.ImagenetDataLoader().build_trainloader(batch_size = args.batch_size)
+        imagenet_dataloader = data.ImagenetDataLoader(imagenet_path=args.imagenet_path).build_trainloader(batch_size = args.batch_size)
         eval_dataloader = data.CifarDataLoader(args.dataset).build_testloader()
         
         ### optimization

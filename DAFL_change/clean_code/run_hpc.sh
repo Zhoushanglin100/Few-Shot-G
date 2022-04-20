@@ -66,7 +66,7 @@ if [ "$flag_s2" = "1" ]; then
     done
 fi
 if [ "$flag_s3" = "1" ]; then 
-    srun -p $partion --gres=gpu:4 -n 1 --cpus-per-task=16 --exclude=asimov-157 python3 main.py \
+    srun -p $partion --gres=gpu:1 -n 1 --cpus-per-task=16 --exclude=asimov-157 python3 main.py \
                                         --dataset $dataset \
                                         -a $arch_t \
                                         --arch_s $arch_s \

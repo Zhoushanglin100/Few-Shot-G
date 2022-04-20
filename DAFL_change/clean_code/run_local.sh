@@ -87,5 +87,6 @@ if [ "$flag_s3" = "1" ]; then
                                 --ratio $ratio \
                                 --imagenet_path $imgNet_path \
                                 --resume \
+                                --disable_wandb \
                                 --ext $ext
 fi
