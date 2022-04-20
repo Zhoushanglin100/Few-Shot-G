@@ -16,6 +16,10 @@ def main():
     args = configs.get_args()
     log_func = configs.set_logger(args)
 
+    print("-----------------------------")
+    print(args)
+    print("-----------------------------")
+
     # get teacher
     teacher = utils.get_teacher(args)
     teacher = nn.DataParallel(teacher.cuda())

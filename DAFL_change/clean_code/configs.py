@@ -67,12 +67,11 @@ def get_args():
     parser.add_argument('--a', type=float, default=0.1, help='activation loss')
 
     parser.add_argument('--disable_wandb', action='store_true', help='disable wandb')
+    
+    parser.add_argument('--Gindex', type=int, help='index of generator')
 
     args = parser.parse_args()
 
-    print("-----------------------------")
-    print(args)
-    print("-----------------------------")
 
     args.save_path = cache_path + '/ckpts_'+args.dataset+"_"+args.arch+'/multi_'+args.ext
     if not os.path.exists(args.save_path):

@@ -67,7 +67,10 @@ def train_G(args, idx, net, generator, teacher, epoch,
                             "loss_G/L2_Loss_"+str(idx): torch.norm(gen_imgs, 2).item(),
                             "G_perf/total_loss_"+str(idx): loss.data.item()
                         }
-            log_func(loss_dict, step=(i+epoch*num_itr)+idx*num_itr*args.n_epochs_G)
+            if log_func == print:
+                log_func(loss_dict)
+            else:
+                log_func(loss_dict, step=(i+epoch*num_itr)+idx*num_itr*args.n_epochs_G)
             log_func({"lr/lr_G": optimizer_G.param_groups[0]['lr']})
         
         optimizer_G.zero_grad()
