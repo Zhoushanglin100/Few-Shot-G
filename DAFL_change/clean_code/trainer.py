@@ -69,9 +69,10 @@ def train_G(args, idx, net, generator, teacher, epoch,
                         }
             if log_func == print:
                 log_func(loss_dict)
+                log_func({"lr/lr_G": optimizer_G.param_groups[0]['lr']})
             else:
-                log_func(loss_dict, step=(i+epoch*num_itr)+idx*num_itr*args.n_epochs_G)
-            log_func({"lr/lr_G": optimizer_G.param_groups[0]['lr']})
+                log_func(loss_dict, step=(i+epoch*num_itr))#+idx*num_itr*args.n_epochs_G)
+                log_func({"lr/lr_G": optimizer_G.param_groups[0]['lr']}, step=(i+epoch*num_itr))#+idx*num_itr*args.n_epochs_G)
         
         optimizer_G.zero_grad()
         loss.backward()
@@ -112,10 +113,13 @@ def train_S(student, teacher, epoch, optimizer, scheduler, dataloader, gen_info,
             # loss = loss + loss_kd
         if batch_idx % 100 == 0:
             print('Student Train - Epoch %d, Batch: %d, Loss: %f' % (epoch, batch_idx, loss.data.item()))
-
-        log_func({"total_loss_S": loss.item()})
-        log_func({"lr/lr_S": optimizer.param_groups[0]['lr']})
-
+            
+            if log_func == print:
+                log_func(loss.item())
+                log_func({"lr/lr_S": optimizer.param_groups[0]['lr']})
+            else:
+                log_func({"total_loss_S": loss.item()}, step=(batch_idx+epoch*num_itr))
+                log_func({"lr/lr_S": optimizer.param_groups[0]['lr']}, step=(batch_idx+epoch*num_itr))
         loss.backward()
         optimizer.step()
     scheduler.step()

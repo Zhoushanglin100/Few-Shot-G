@@ -40,7 +40,7 @@ export lr_S=${11}
 export ratio=${12}
 export imgNet_path=${13}
 
-export dataset=cifar10
+export dataset=cifar100
 
 export ext=Smp${sample_batch}_R${lambda_s}_ld${latent_dim}_Gbz${train_G_bz}_Glr${lr_G}
 
@@ -54,7 +54,7 @@ if [ "$flag_s1" = "1" ]; then
                                         --batch-size $sample_batch
 fi
 if [ "$flag_s2" = "1" ]; then 
-    numG=$(python3 findN.py -a $arch_t --stat_bz $sample_batch)
+    numG=$(python3 findN.py -a $arch_t --stat_bz $sample_batch --dataset $dataset)
     for idx in $(seq 0 $numG)
     do
         CUDA_VISIBLE_DEVICES=5 python3 main_sepG.py \
@@ -64,7 +64,7 @@ if [ "$flag_s2" = "1" ]; then
                                             --train_G \
                                             --stat_bz $sample_batch \
                                             --batch_size $train_G_bz \
-                                            --n_epochs_G 50 \
+                                            --n_epochs_G 3 \
                                             --lr_G $lr_G \
                                             --lambda_s $lambda_s \
                                             --latent_dim $latent_dim \
@@ -79,6 +79,7 @@ if [ "$flag_s3" = "1" ]; then
                                 --arch_s $arch_s \
                                 --fix_G \
                                 --train_S \
+                                --n_epochs_G 3 \
                                 --n_epochs 2000 \
                                 --stat_bz $sample_batch \
                                 --batch_size $train_S_bz \
@@ -87,6 +88,5 @@ if [ "$flag_s3" = "1" ]; then
                                 --ratio $ratio \
                                 --imagenet_path $imgNet_path \
                                 --resume \
-                                --disable_wandb \
                                 --ext $ext
 fi
