@@ -1,31 +1,31 @@
 export partion=$1
 export imagenet_path=$2
 
-for sample_bz in 100 500 1000
-do
-    for teacher in resnet34 vgg16
-    do
-        bash run_hpc.sh $partion s1 $sample_bz $teacher resnet 128 128 10 1000 0.1 0.01 0.5 $imagenet_path &
-    done
-done
-
-# -----------------
-# for lambda in 1 3 10 100
+# for sample_bz in 100 500 1000
 # do
-#     for G_bz in 128 256
+#     for teacher in resnet34 vgg16
 #     do
-#         for latent_dim in 1000 3000 5000
-#         do
-#             bash run_hpc.sh $partion s2 100 vgg16 vgg $G_bz 128 $lambda $latent_dim 0.1 0.01 0.1 $imagenet_path &
-#             bash run_hpc.sh $partion s2 500 resnet34 resnet $G_bz 128 $lambda $latent_dim 0.1 0.01 0.1 $imagenet_path &
-#             bash run_hpc.sh $partion s2 1000 resnet34 resnet $G_bz 128 $lambda $latent_dim 0.1 0.01 0.1 $imagenet_path &
-            
-#             bash run_hpc.sh $partion s2 100 resnet34 resnet $G_bz 128 $lambda $latent_dim 0.1 0.01 0.1 $imagenet_path &
-#             bash run_hpc.sh $partion s2 500 vgg16 vgg $G_bz 128 $lambda $latent_dim 0.1 0.01 0.1 $imagenet_path &
-#             bash run_hpc.sh $partion s2 1000 vgg16 vgg $G_bz 128 $lambda $latent_dim 0.1 0.01 0.1 $imagenet_path &
-#         done
+#         bash run_hpc.sh $partion s1 $sample_bz $teacher resnet 128 128 10 1000 0.1 0.01 0.5 $imagenet_path &
 #     done
 # done
+
+# -----------------
+for lambda in 1 3 10 100
+do
+    for G_bz in 128 256
+    do
+        for latent_dim in 1000 3000 5000
+        do
+            bash run_hpc.sh $partion s2 100 vgg16 vgg $G_bz 128 $lambda $latent_dim 0.1 0.01 0.1 $imagenet_path &
+            bash run_hpc.sh $partion s2 500 resnet34 resnet $G_bz 128 $lambda $latent_dim 0.1 0.01 0.1 $imagenet_path &
+            bash run_hpc.sh $partion s2 1000 resnet34 resnet $G_bz 128 $lambda $latent_dim 0.1 0.01 0.1 $imagenet_path &
+            
+            bash run_hpc.sh $partion s2 100 resnet34 resnet $G_bz 128 $lambda $latent_dim 0.1 0.01 0.1 $imagenet_path &
+            bash run_hpc.sh $partion s2 500 vgg16 vgg $G_bz 128 $lambda $latent_dim 0.1 0.01 0.1 $imagenet_path &
+            # bash run_hpc.sh $partion s2 1000 vgg16 vgg $G_bz 128 $lambda $latent_dim 0.1 0.01 0.1 $imagenet_path &
+        done
+    done
+done
 
 # # -----------------
 # for lambda in 1 3 10 100; do

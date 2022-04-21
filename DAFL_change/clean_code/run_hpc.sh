@@ -33,7 +33,7 @@ export lr_S=${11}
 export ratio=${12}
 export imgNet_path=${13}
 
-export dataset=cifar100
+export dataset=cifar10
 
 export ext=Smp${sample_batch}_R${lambda_s}_ld${latent_dim}_Gbz${train_G_bz}_Glr${lr_G}
 
