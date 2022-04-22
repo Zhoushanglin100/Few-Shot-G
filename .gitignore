@@ -21,3 +21,4 @@ DAFL_change/stats
 **/wandb
 **/__pycache__
 
+venv/
