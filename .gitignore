@@ -6,14 +6,18 @@ imagecluster
 image-clustering
 SPICE
 Unsupervised-Classification
-
 DAFL/cache/
-
 DeepInversion_multi/data
 
+google-research
+
 ### mine
-DAFL_change/__pycache__
-DAFL_change/wandb
+# DAFL_change/__pycache__
+# DAFL_change/wandb
 DAFL_change/cache
 DAFL_change/figure
 DAFL_change/stats
+
+**/wandb
+**/__pycache__
+
