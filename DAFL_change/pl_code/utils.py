@@ -117,54 +117,6 @@ def load(load_path, model, optimizer, scheduler):
     return epoch, model, optimizer, scheduler
 
 
-class GeneratorInfo():
-    def __init__(self, args):
-        self.num_G = args.num_G
-        self.load_path = args.save_path
-        self.batch_size = args.batch_size
-        self.latent_dim = args.latent_dim
-        self.img_size = args.img_size
-        self.channels = args.channels
-        self.G_list = []
-
-    def get_generators(self):
-        for i in range(0, self.num_G):
-            start_class = i
-            end_class = i+1
-            generator = Generator(img_size=self.img_size, n_channels=self.channels, latent_dim=self.latent_dim)
-            G_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
-            print(self.load_path+'/'+G_name)
-            assert os.path.exists(self.load_path+'/'+G_name)
-            ckeckpoints = torch.load(self.load_path+'/'+G_name)
-            generator.load_state_dict(ckeckpoints['G_state_dict'])
-            generator = nn.DataParallel(generator)
-            generator.eval()
-            self.G_list.append(generator)
-        print(">>>>> Finish Loading Generators")
-        # return self.G_list
-
-    def generate_imgs(self):
-        imgs = []
-        gids = []
-        generator_list = self.G_list
-        num_gens = len(generator_list)
-        for idx, generator in enumerate(generator_list):
-            # generator.eval()
-            # generator.cuda()
-            gen_size = round(self.batch_size/num_gens)
-            if idx == num_gens-1:
-                gen_size = self.batch_size - round(self.batch_size/num_gens)*(num_gens-1)
-            # print("bzbzbzbz", gen_size)
-            z = torch.randn(gen_size, self.latent_dim, requires_grad=False)
-            imgs.append(generator(z))
-            gids.append(torch.tensor([idx]).repeat(gen_size))
-        idx = torch.randperm(self.batch_size)
-        imgs = torch.cat(imgs)[idx]
-        # print("iiiiiii", imgs.shape[0])
-        gids = torch.cat(gids)[idx]
-        return imgs, gids
-
-
 if __name__ == '__main__':
     # y = torch.randn(20)
     # t_s = torch.randn(20)

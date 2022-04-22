@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import os
 
 ### add deepinversion
 class DeepInversionFeatureHook():
@@ -41,17 +42,9 @@ class DeepInversionFeatureHook():
             # other ways might work better, e.g. KL divergence
             r_feature = torch.norm(module.running_var.data.type(var.type()) - var, 2) + torch.norm(module.running_mean.data.type(mean.type()) - mean, 2)
         elif self.stat_type == "extract":
-            batch_mean = self.mean_dict[self.name] # .cuda()
-            batch_var = self.var_dict[self.name] # .cuda()
-
-            # criterion = nn.CosineEmbeddingLoss()
-            # r_feature = criterion(batch_var.view(1,-1), var.view(1,-1), torch.ones(1).cuda()) + criterion(batch_mean.view(1,-1), mean.view(1,-1), torch.ones(1).cuda())
-
+            batch_mean = self.mean_dict[self.name]
+            batch_var = self.var_dict[self.name]
             r_feature = torch.norm(batch_var.type(var.type()) - var, 2) + torch.norm(batch_mean.type(mean.type()) - mean, 2)
-
-            # print(r_feature.item())
-            # print("v", criterion(batch_var.view(1,-1), var.view(1,-1), torch.ones(1).cuda()).item())
-            # print("m", criterion(batch_mean.view(1,-1), mean.view(1,-1), torch.ones(1).cuda()).item())
 
         self.r_feature = r_feature
         # must have no output
@@ -98,14 +91,37 @@ class Generator(nn.Module):
         img = self.conv_blocks2(img)
         return img
 
+    @property
+    def device(self):
+        return next(self.parameters()).device
+
 
 class GeneratorList(nn.Module):
-    def __init__(self, generator_list, batch_size):
+    def __init__(self, args):
         super().__init__()
-        self.batch_size = batch_size
-        self.G_list = torch.nn.ModuleList(generator_list)
+        self.num_G = args.num_G
+        self.load_path = args.save_path
+        self.batch_size = args.batch_size
+        self.latent_dim = args.latent_dim
+        self.img_size = args.img_size
+        self.channels = args.channels
+        self.G_list = torch.nn.ModuleList([])
+        self._get_generators()
 
-    def forward(self, x):
+    def _get_generators(self):
+        for i in range(0, self.num_G):
+            start_class = i
+            end_class = i+1
+            generator = Generator(img_size=self.img_size, n_channels=self.channels, latent_dim=self.latent_dim)
+            G_name = "start-"+str(start_class)+"_end-"+str(end_class)+".pth"
+            print(self.load_path+'/'+G_name)
+            assert os.path.exists(self.load_path+'/'+G_name)
+            ckeckpoints = torch.load(self.load_path+'/'+G_name, map_location=torch.device('cpu'))
+            generator.load_state_dict(ckeckpoints['G_state_dict'])
+            self.G_list.append(generator)
+        print(">>>>> Finish Loading Generators")
+
+    def forward(self):
         imgs = []
         gids = []
         num_gens = len(self.G_list)
@@ -113,7 +129,7 @@ class GeneratorList(nn.Module):
             gen_size = round(self.batch_size / num_gens)
             if idx == num_gens-1:
                 gen_size = self.batch_size - round(self.batch_size/num_gens)*(num_gens-1)
-            z = torch.randn(gen_size, generator.latent_dim, requires_grad=False, device=generator.device)
+            z = torch.randn(gen_size, self.latent_dim, requires_grad=False, device=generator.device)
             imgs.append(generator(z))
             gids.append(torch.tensor([idx]).repeat(gen_size))
         idx = torch.randperm(self.batch_size)

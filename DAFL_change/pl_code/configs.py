@@ -1,12 +1,6 @@
 import argparse
 import os
 
-try:
-    import wandb
-    has_wandb = True
-except ImportError: 
-    has_wandb = False
-
 imagenet_path = '/mnt/data/xingyucai/imagenet'
 cache_path = '../cache'
 
@@ -79,28 +73,3 @@ def get_args():
         os.makedirs(args.save_path)
     return args
 
-
-def set_logger(args):
-    if has_wandb and not args.disable_wandb:
-        if args.train_G:
-            id = f"D-trainG-{args.dataset}{args.arch}-bz{args.batch_size}-{args.ext}"
-        if args.train_S:
-            id = f"D-trainS-{args.dataset}{args.arch}{args.arch_s}-r{args.ratio}lrS{args.lr_S}bz{args.batch_size}-{args.ext}"
-        
-        # if "asimov" in os.environ["$HOSTNAME"]:
-        # wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
-        # else:
-        wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args)
-        wandb.config.update(args)
-        log_func = wandb.log
-    
-    else:
-        log_func = print
-
-    return log_func
-
-
-# if __name__ == '__main__':
-#     args = get_args()
-#     log_func = set_logger(args)
-#     print(log_func)

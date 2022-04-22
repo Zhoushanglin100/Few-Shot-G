@@ -41,17 +41,9 @@ class DeepInversionFeatureHook():
             # other ways might work better, e.g. KL divergence
             r_feature = torch.norm(module.running_var.data.type(var.type()) - var, 2) + torch.norm(module.running_mean.data.type(mean.type()) - mean, 2)
         elif self.stat_type == "extract":
-            batch_mean = self.mean_dict[self.name].cuda()
-            batch_var = self.var_dict[self.name].cuda()
-
-            # criterion = nn.CosineEmbeddingLoss()
-            # r_feature = criterion(batch_var.view(1,-1), var.view(1,-1), torch.ones(1).cuda()) + criterion(batch_mean.view(1,-1), mean.view(1,-1), torch.ones(1).cuda())
-
+            batch_mean = self.mean_dict[self.name]
+            batch_var = self.var_dict[self.name]
             r_feature = torch.norm(batch_var.type(var.type()) - var, 2) + torch.norm(batch_mean.type(mean.type()) - mean, 2)
-
-            # print(r_feature.item())
-            # print("v", criterion(batch_var.view(1,-1), var.view(1,-1), torch.ones(1).cuda()).item())
-            # print("m", criterion(batch_mean.view(1,-1), mean.view(1,-1), torch.ones(1).cuda()).item())
 
         self.r_feature = r_feature
         # must have no output
