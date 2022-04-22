@@ -7,7 +7,7 @@ try:
 except ImportError: 
     has_wandb = False
 
-imagenet_path = '/data/imagenet'
+imagenet_path = '/data/imagenet/train'
 cache_path = '../cache'
 
 def get_args():
@@ -85,13 +85,13 @@ def set_logger(args):
         if args.train_G:
             id = f"D-trainG-{args.dataset}{args.arch}-bz{args.batch_size}-{args.Gindex}-{args.ext}"
         if args.train_S:
-            id = f"D-trainS-{args.dataset}{args.arch}{args.arch_s}-r{args.ratio}lrS{args.lr_S}bz{args.batch_size}-{args.ext}"
-            # id = f"tmp5-trainS-{args.dataset}{args.arch}{args.arch_s}-r{args.ratio}lrS{args.lr_S}bz{args.batch_size}-{args.ext}"
+            # id = f"D-trainS-{args.dataset}{args.arch}{args.arch_s}-r{args.ratio}lrS{args.lr_S}bz{args.batch_size}-{args.ext}"
+            id = f"tmp6-trainS-{args.dataset}{args.arch}{args.arch_s}-r{args.ratio}lrS{args.lr_S}bz{args.batch_size}-{args.ext}"
 
         # if "asimov" in os.environ["$HOSTNAME"]:
-        wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
+        # wandb.init(project='few-shot-multi', entity='tidedancer', config=args, resume="allow", id=id)
         # else:
-        # wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args, id=id, resume="allow")
+        wandb.init(project='few-shot-multi', entity='zhoushanglin100', config=args, id=id, resume="allow")
         wandb.config.update(args)
         log_func = wandb.log
     

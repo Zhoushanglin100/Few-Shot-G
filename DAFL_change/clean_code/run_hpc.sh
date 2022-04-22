@@ -33,14 +33,14 @@ export lr_S=${11}
 export ratio=${12}
 export imgNet_path=${13}
 
-export dataset=cifar10
+export dataset=${14}
 
 export ext=Smp${sample_batch}_R${lambda_s}_ld${latent_dim}_Gbz${train_G_bz}_Glr${lr_G}
 
 
 
 if [ "$flag_s1" = "1" ]; then 
-    srun -p $partion --gres=gpu:1 -n 1 --cpus-per-task=4 ---exclude=$(cat ~/tools/exclude.list) python3 gen_stats_cluster_finch_feature.py \
+    srun -p $partion --gres=gpu:1 -n 1 --cpus-per-task=4 --exclude=$(cat ~/tools/exclude.list) python3 gen_stats_cluster_finch_feature.py \
                                         --dataset $dataset \
                                         -a $arch_t \
                                         --pretrained \

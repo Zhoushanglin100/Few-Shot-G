@@ -90,13 +90,10 @@ def train_S(student, teacher, epoch, optimizer, scheduler, dataloader, gen_info,
             break
 
         if torch.rand(1).item() < gen_ratio:
-            # imgs, _ = utils.generate_imgs(G_list, batch_size, latent_dim)
             imgs, _ = gen_info.generate_imgs()
         imgs = imgs.cuda()
 
-        # batch_size = imgs.shape[0]
-        # print("aaaaaaa", batch_size)
-        
+
         optimizer.zero_grad()
         outputs_T= teacher(imgs)
         outputs_S = student(imgs)
